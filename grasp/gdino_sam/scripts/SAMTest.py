@@ -95,6 +95,6 @@ cv2.imshow("Masks", blended_image)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
 
-# # Save the masked image
-# cv2.imwrite(output_mask_path, image)
-# print(f"Masks applied and saved to {output_mask_path}")
+# Save the masked image
+cv2.imwrite(output_mask_path, blended_image)
+print(f"Masks applied and saved to {output_mask_path}")

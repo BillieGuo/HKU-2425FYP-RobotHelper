@@ -14,11 +14,10 @@ input_image_path = os.path.join(assets_dir, "realsense_capture_720p", "rgb_image
 output_dir = os.path.join(assets_dir, "GDinoSAMTest_output")
 os.makedirs(output_dir, exist_ok=True)
 output_image_path = os.path.join(output_dir, "annotated_masked_image.jpg")
-
+config_path = os.path.join(script_dir, "..", "GroundingDINO", "groundingdino", "config", "GroundingDINO_SwinT_OGC.py")
+weights_path = os.path.join(script_dir, "..", "pth", "groundingdino_swint_ogc.pth")
 # Load the GroundingDINO model
-model = load_model(
-    "/home/intern/GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py", "/home/intern/GroundingDINO/weights/groundingdino_swint_ogc.pth"
-)
+model = load_model(config_path, weights_path)
 
 # Define constants for detection
 TEXT_PROMPT = "tape . mouse ."

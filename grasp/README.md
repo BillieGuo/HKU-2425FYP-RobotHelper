@@ -7,7 +7,7 @@ Python 3.10.12
 
 To be compatible with ROS2, I did not use conda environment.
 
-## AnyGrasp
+## Install AnyGrasp
 
 ### MinkowskiEngine
 According to [anygrasp_sdk installation instruction](https://github.com/graspnet/anygrasp_sdk?tab=readme-ov-file#installation), MinkowskiEngine is required. 
@@ -157,3 +157,45 @@ print(f'Loss: {loss.item()}')
 
     Most of warnings and errors running the demo can be found in Issues.
 
+## Install GroundingDINO
+
+### Install as submodule
+GroundingDINO should be cloned as a submodule in gdino_sam ROS2 package using following commands in the root directory of repo:
+
+```
+git submodule init
+git submodule update
+```
+
+Then install the package according to its [README](./gdino_sam/GroundingDINO/README.md).
+
+If you have set the CUDA_HOME, just go to GroundingDINO directory and use
+```
+pip install -e .
+```
+
+### Download pre-trained weights
+After that download the pre-trained model weights 
+```
+mkdir weights
+cd weights
+wget -q https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alpha/groundingdino_swint_ogc.pth
+cd ..
+```
+
+(It's ok to put the .pth file in /pth folder for management as long as you refer to correct location in your code.)
+
+### Test
+Use [this script](./gdino_sam/scripts/GDinoTest.py) to test your installation. Remember to figure out the paths before running.
+
+The results will be save as an annotated image and a json file containing the information of bounding boxes. You can check the output directory indicated in the code.
+
+## Install Segment Anything Model
+
+Refer to [this link](https://github.com/facebookresearch/segment-anything?tab=readme-ov-file#installation) to install Segment Anything and downloas the pre-trained weights in pth folder.
+
+Run [this test script](./gdino_sam/scripts/SAMTest.py) (after you have tested with GroundingDINO) to segment the object prompted by the bounding boxes derived from GoundingDINO. The result is a masked image stored in output path and will be shown using cv on the screen.
+
+### Test two models together
+
+Run [this test script](./gdino_sam/scripts/GDinoSAMTest.py). The result image will contain both bounding boxes and masks.
