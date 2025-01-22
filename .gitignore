@@ -1,0 +1,26 @@
+# Python cache files
+*.pyc
+__pycache__/
+
+# Virtual environment directories specific to the package
+venv/
+env/
+.venv/
+.env/
+
+# IDE/editor directories and files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.swp
+*.swo
+
+# Model Weights
+*.pth
