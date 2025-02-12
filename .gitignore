@@ -25,3 +25,9 @@ Thumbs.db
 # Model Weights
 *.pth
 *.tar
+
+# License
+license/
+
+# Libraries
+*.so
