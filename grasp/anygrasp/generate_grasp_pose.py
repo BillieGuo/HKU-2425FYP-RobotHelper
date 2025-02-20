@@ -63,7 +63,9 @@ def demo(data_dir):
     gg_pick = gg[0:20]
     print(gg_pick.scores)
     print("grasp score:", gg_pick[0].score)
-
+    best_grasp = gg_pick[0]
+    # print("best grasp:", best_grasp)
+    print(best_grasp.translation, best_grasp.rotation_matrix)
     # visualization
     if cfgs.debug:
         trans_mat = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
@@ -71,22 +73,24 @@ def demo(data_dir):
         grippers = gg.to_open3d_geometry_list()
         for gripper in grippers:
             gripper.transform(trans_mat)
-        # o3d.visualization.draw_geometries([*grippers, cloud])
-        # o3d.visualization.draw_geometries([grippers[0], cloud])
+        # With Display
+        o3d.visualization.draw_geometries([*grippers, cloud])
+        o3d.visualization.draw_geometries([grippers[0], cloud])
 
-        # Create an off-screen renderer
-        width, height = 1280, 720
-        renderer = o3d.visualization.rendering.OffscreenRenderer(width, height)
+        # Without Display
+        # # Create an off-screen renderer
+        # width, height = 1280, 720
+        # renderer = o3d.visualization.rendering.OffscreenRenderer(width, height)
 
-        # Add geometries to the renderer
-        renderer.scene.add_geometry("cloud", cloud, o3d.visualization.rendering.MaterialRecord())
-        # for i, gripper in enumerate(grippers):
-        #    renderer.scene.add_geometry(f"gripper_{i}", gripper, o3d.visualization.rendering.MaterialRecord())
-        renderer.scene.add_geometry("best_gripper", grippers[0], o3d.visualization.rendering.MaterialRecord())
+        # # Add geometries to the renderer
+        # renderer.scene.add_geometry("cloud", cloud, o3d.visualization.rendering.MaterialRecord())
+        # # for i, gripper in enumerate(grippers):
+        # #    renderer.scene.add_geometry(f"gripper_{i}", gripper, o3d.visualization.rendering.MaterialRecord())
+        # renderer.scene.add_geometry("best_gripper", grippers[0], o3d.visualization.rendering.MaterialRecord())
 
-        # Capture the screen image and save it
-        image = renderer.render_to_image()
-        o3d.io.write_image("visualization_result.png", image)
+        # # Capture the screen image and save it
+        # image = renderer.render_to_image()
+        # o3d.io.write_image("visualization_result.png", image)
 
 
 if __name__ == "__main__":
