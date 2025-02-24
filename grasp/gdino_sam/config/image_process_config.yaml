@@ -1,0 +1,9 @@
+paths:
+  groundingdino_weights_path: "../pth/groundingdino_swint_ogc.pth"
+  groundingdino_config_path: "../GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py"
+  sam_weights_path: "../pth/sam_vit_h_4b8939.pth"
+  mask_storage_path: "../assets/mask.png"
+
+thresholds:
+  box_threshold: 0.35
+  text_threshold: 0.25

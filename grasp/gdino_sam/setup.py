@@ -20,9 +20,9 @@ setup(
         # Removed 'keyboard' dependency
     ],
     zip_safe=True,
-    maintainer="your_name",
-    maintainer_email="your_email@example.com",
-    description="Description of your package",
+    maintainer="Zeng Shaoyu",
+    maintainer_email="zshaoyu@connect.hku.hk",
+    description="Detect and segment objects using GroundingDINO and SAM",
     license="Your License",
     tests_require=["pytest"],
     entry_points={
