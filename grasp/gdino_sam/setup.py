@@ -13,6 +13,8 @@ setup(
         ("share/" + package_name, ["package.xml"]),
         # Include all scripts in the scripts directory
         (os.path.join("share", package_name, "scripts"), glob("scripts/*.py")),
+        # Include the config directory
+        (os.path.join("share", package_name, "config"), glob("config/*.yaml")),
     ],
     install_requires=[
         "setuptools",
@@ -28,6 +30,8 @@ setup(
     entry_points={
         "console_scripts": [
             "realsense_ros_test = gdino_sam.realsense_ros_test:main",
+            "image_processor_node = gdino_sam.image_processor:main",
+            "prompt_node = gdino_sam.prompt_node:main",
         ],
     },
 )
