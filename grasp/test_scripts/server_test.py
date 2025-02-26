@@ -1,12 +1,15 @@
 import socket
+from rclpy.serialization import deserialize_message
+from std_msgs.msg import String
 
 
 def start_server():
     # Create a socket object
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
     # Get local machine name
-    host = socket.gethostname()
     port = 6000
 
     # Bind to the port
@@ -23,11 +26,15 @@ def start_server():
         print(f"Got a connection from {addr}")
 
         # Receive data from the client
-        data = client_socket.recv(1024).decode("utf-8")
-        print(f"Received data: {data}")
+        data = client_socket.recv(1024)
+        msg_deserialized = deserialize_message(data, message_type=String)
+        print(f"Received data: {msg_deserialized}")
+        # data = client_socket.recv(1024).decode("utf-8")
+        message = msg_deserialized.data
+        # print(f"Received data: {data}")
 
         # Send a response to the client
-        response = "Data received"
+        response = f"Data received: {message}"
         client_socket.send(response.encode("utf-8"))
 
         # Close the connection
