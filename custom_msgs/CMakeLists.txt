@@ -12,7 +12,7 @@ find_package(rosidl_default_generators REQUIRED)
 find_package(realsense2_camera_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
-  "msg/GraspPrompt.msg"
+  "msg/GraspQuery.msg"
   DEPENDENCIES realsense2_camera_msgs
 )
 
