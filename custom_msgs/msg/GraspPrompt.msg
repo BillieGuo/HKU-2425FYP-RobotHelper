@@ -1,0 +1,2 @@
+string text_prompt
+realsense2_camera_msgs/RGBD rgbd_msg
