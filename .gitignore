@@ -31,3 +31,6 @@ license/
 
 # Libraries
 *.so
+
+# Test files
+test/
