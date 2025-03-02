@@ -18,9 +18,7 @@ class ImageProcessor(Node):
         super().__init__("image_processor")
         package_share_directory = get_package_share_directory("gdino_sam")
         config_file_path = os.path.join(package_share_directory, "config", "image_process_config.yaml")
-        self.declare_parameter("config_file", config_file_path)
-        config_file = self.get_parameter("config_file").get_parameter_value().string_value
-        with open(config_file, "r") as file:
+        with open(config_file_path, "r") as file:
             self.config = yaml.safe_load(file)
         self.records = os.path.join(self.config["paths"]["package_path"], self.config["paths"]["record_path"])
 

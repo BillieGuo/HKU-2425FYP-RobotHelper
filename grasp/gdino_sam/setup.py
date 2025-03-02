@@ -15,6 +15,8 @@ setup(
         (os.path.join("share", package_name, "scripts"), glob("scripts/*.py")),
         # Include the config directory
         (os.path.join("share", package_name, "config"), glob("config/*.yaml")),
+        # Include the launch directory
+        (os.path.join("share", package_name, "launch"), glob("launch/*.launch.py")),
     ],
     install_requires=[
         "setuptools",

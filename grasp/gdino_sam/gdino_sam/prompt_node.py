@@ -102,7 +102,7 @@ def main(args=None):
     parser.add_argument("-l", "--local", action="store_true", help="Run in local mode")
     parser.add_argument("--namespace", type=str, default="grasp_module", help="Camera namespace")
     parser.add_argument("--camera", type=str, default="D435i", help="Camera name")
-    args = parser.parse_args()
+    args, unknown = parser.parse_known_args(rclpy.utilities.remove_ros_args(args))
 
     mode = "local" if args.local else "remote"
     node = PromptNode(mode, args.namespace, args.camera)
