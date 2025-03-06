@@ -1,7 +1,6 @@
 import rclpy
 from rclpy.node import Node
 from realsense2_camera_msgs.msg import RGBD
-from sensor_msgs.msg import Image as ROSImage
 from std_msgs.msg import String
 from cv_bridge import CvBridge
 import numpy as np
@@ -11,6 +10,13 @@ import os
 from .gdino_sam import GDinoSAM
 from datetime import datetime
 import cv2
+
+# RGBD Message
+# std_msgs/Header header
+# sensor_msgs/CameraInfo rgb_camera_info
+# sensor_msgs/CameraInfo depth_camera_info
+# sensor_msgs/Image rgb
+# sensor_msgs/Image depth
 
 
 class ImageProcessor(Node):
@@ -37,16 +43,20 @@ class ImageProcessor(Node):
         self.rgb_image = None
         self.depth_image = None
         self.prompt = None
+        self.rgb_camera_info = None
+        self.depth_camera_info = None
 
         self.rgbd_sub = self.create_subscription(RGBD, "/rgbd_remote", self.rgbd_callback, 10)
         self.prompt_sub = self.create_subscription(String, "/object_prompt", self.prompt_callback, 10)
-        self.cropped_image_pub = self.create_publisher(ROSImage, "cropped_image", 10)
+        self.cropped_rgbd_pub = self.create_publisher(RGBD, "/cropped_rgbd", 10)
         self.get_logger().info("The image_processor node initialized successfully, listening to the prompt\n")
 
     def rgbd_callback(self, msg):
         # self.get_logger().info("RGBD images received\n")
         self.rgb_image = self.bridge.imgmsg_to_cv2(msg.rgb, "bgr8")
         self.depth_image = self.bridge.imgmsg_to_cv2(msg.depth, "16UC1")
+        self.rgb_camera_info = msg.rgb_camera_info
+        self.depth_camera_info = msg.depth_camera_info
 
     def prompt_callback(self, msg):
         self.prompt = msg.data
@@ -67,11 +77,13 @@ class ImageProcessor(Node):
         return masked_color, masked_depth
 
     def publish_cropped_images(self, color_image, depth_image):
-        color_msg = self.bridge.cv2_to_imgmsg(color_image, "bgr8")
-        depth_msg = self.bridge.cv2_to_imgmsg(depth_image, "16UC1")
-        self.cropped_image_pub.publish(color_msg)
-        self.cropped_image_pub.publish(depth_msg)
-        self.get_logger().info("Cropped images published\n")
+        rgbd_msg = RGBD()
+        rgbd_msg.rgb = self.bridge.cv2_to_imgmsg(color_image, "bgr8")
+        rgbd_msg.depth = self.bridge.cv2_to_imgmsg(depth_image, "16UC1")
+        rgbd_msg.rgb_camera_info = self.rgb_camera_info
+        rgbd_msg.depth_camera_info = self.depth_camera_info
+        self.cropped_rgbd_pub.publish(rgbd_msg)
+        self.get_logger().info("Cropped RGBD message published\n")
 
     def take_record(self, rgb_image, depth_image, cropped_color, cropped_depth, mask):
         # Save these information to the record_dir/record_{timestamp}/ separately
