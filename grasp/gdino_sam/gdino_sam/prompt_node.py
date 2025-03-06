@@ -105,6 +105,7 @@ def main(args=None):
     args, unknown = parser.parse_known_args(rclpy.utilities.remove_ros_args(args))
 
     mode = "local" if args.local else "remote"
+    # mode = "local"
     node = PromptNode(mode, args.namespace, args.camera)
 
     try:
