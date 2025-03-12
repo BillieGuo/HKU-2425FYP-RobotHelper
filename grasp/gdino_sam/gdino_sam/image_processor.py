@@ -64,6 +64,9 @@ class ImageProcessor(Node):
         if self.rgb_image is not None and self.depth_image is not None:
             self.get_logger().info("Start the inference\n")
             mask = self.gdino_sam.infer(self.rgb_image, self.depth_image, self.prompt)
+            if mask is None:
+                self.get_logger().info("gdino_sam failed\n")
+                return
             cropped_color, cropped_depth = self.crop_image(self.rgb_image, self.depth_image, mask)
             self.publish_cropped_images(cropped_color, cropped_depth)
             self.take_record(self.rgb_image, self.depth_image, cropped_color, cropped_depth, mask)

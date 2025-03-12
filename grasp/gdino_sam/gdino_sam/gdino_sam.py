@@ -42,6 +42,10 @@ class GDinoSAM:
         # Perform object detection
         boxes, logits, phrases = predict(self.model, image_transformed, prompt, self.box_threshold, self.text_threshold)
         absolute_boxes = self.convert_boxes(boxes, image_width, image_height)
+        print(absolute_boxes.size)
+        if absolute_boxes.size == 0:
+            print("No bounding box predicted")
+            return None
         print("Bounding box predicted")
 
         # Predict masks using SAM
