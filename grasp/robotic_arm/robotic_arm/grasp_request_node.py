@@ -16,7 +16,7 @@ class GraspRequestNode(Node):
         self.responder_sock = None
         rgbd_topic = f"/{camera_namespace}/{camera_name}/rgbd"
         self.rgbd_sub = self.create_subscription(RGBD, rgbd_topic, self.rgbd_callback, 10)
-        self.prompt_sub = self.create_subscription(String, "/grasp_prompt", self.prompt_callback, 10)
+        self.prompt_sub = self.create_subscription(String, "/text_prompt", self.prompt_callback, 10)
         self.get_logger().info(f"Grasp request node initialized with camera namespace: {camera_namespace}, camera name: {camera_name}")
         self.connect_to_server()
 
@@ -70,7 +70,7 @@ def main(args=None):
     parser.add_argument("--camera", type=str, default="D435i", help="Camera name")
     args = parser.parse_args()
 
-    node = ArmClient(args.namespace, args.camera)
+    node = GraspRequestNode(args.namespace, args.camera)
 
     try:
         rclpy.spin(node)

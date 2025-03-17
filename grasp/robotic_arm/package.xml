@@ -1,16 +1,18 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>grasp_execute</name>
+  <name>robotic_arm</name>
   <version>0.0.0</version>
-  <description>Handle the grasp request and response</description>
+  <description>Package on board for robotic arm manipulation</description>
   <maintainer email="zshaoyu@connect.hku.hk">Zeng Shaoyu</maintainer>
   <license>TODO: License declaration</license>
 
+  <depend>interbotix_xs_modules</depend>
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>
   <test_depend>python3-pytest</test_depend>
+
 
   <export>
     <build_type>ament_python</build_type>

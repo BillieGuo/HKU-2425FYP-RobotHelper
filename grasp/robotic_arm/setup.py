@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'grasp_execute'
+package_name = 'robotic_arm'
 
 setup(
     name=package_name,
@@ -15,12 +15,13 @@ setup(
     zip_safe=True,
     maintainer='Zeng Shaoyu',
     maintainer_email='zshaoyu@connect.hku.hk',
-    description='Handle the grasp request and response',
+    description='Package on board for robotic arm manipulation',
     license='TODO: License declaration',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'grasp_request_node = grasp_execute.grasp_request_node:main'
+            'grasp_request_node = robotic_arm.grasp_request_node:main',
+            'grasp_response_node = robotic_arm.grasp_response_node:main'
         ],
     },
 )
