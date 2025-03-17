@@ -8,15 +8,16 @@ import socket
 import argparse
 
 
-class ArmClient(Node):
+class GraspRequestNode(Node):
     def __init__(self, camera_namespace, camera_name):
-        super().__init__("arm_client")
+        super().__init__("grasp_request_node")
         self.rgbd_msg = None
         self.sock = None
+        self.responder_sock = None
         rgbd_topic = f"/{camera_namespace}/{camera_name}/rgbd"
         self.rgbd_sub = self.create_subscription(RGBD, rgbd_topic, self.rgbd_callback, 10)
         self.prompt_sub = self.create_subscription(String, "/grasp_prompt", self.prompt_callback, 10)
-        self.get_logger().info(f"ArmClient node initialized with camera namespace: {camera_namespace}, camera name: {camera_name}")
+        self.get_logger().info(f"Grasp request node initialized with camera namespace: {camera_namespace}, camera name: {camera_name}")
         self.connect_to_server()
 
     def connect_to_server(self):
@@ -57,6 +58,8 @@ class ArmClient(Node):
     def destroy_node(self):
         if self.sock:
             self.sock.close()
+        if self.responder_sock:
+            self.responder_sock.close()
         super().destroy_node()
 
 

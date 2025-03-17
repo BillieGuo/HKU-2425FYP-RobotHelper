@@ -26,6 +26,7 @@ setup(
     entry_points={
         "console_scripts": [
             "anygrasp_node = anygrasp.anygrasp_node:main",
+            "grasp_responder = anygrasp.grasp_responder:main",
         ],
     },
 )

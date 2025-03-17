@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'grasp_execution'
+package_name = 'grasp_execute'
 
 setup(
     name=package_name,
@@ -13,14 +13,14 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='robot-helper',
-    maintainer_email='robot-helper@todo.todo',
-    description='TODO: Package description',
+    maintainer='Zeng Shaoyu',
+    maintainer_email='zshaoyu@connect.hku.hk',
+    description='Handle the grasp request and response',
     license='TODO: License declaration',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'arm_client = grasp_execution.arm_client:main'
+            'grasp_request_node = grasp_execute.grasp_request_node:main'
         ],
     },
 )
