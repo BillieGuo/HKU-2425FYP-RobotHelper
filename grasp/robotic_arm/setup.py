@@ -21,7 +21,8 @@ setup(
     entry_points={
         'console_scripts': [
             'grasp_request_node = robotic_arm.grasp_request_node:main',
-            'grasp_response_node = robotic_arm.grasp_response_node:main'
+            'grasp_response_node = robotic_arm.grasp_response_node:main',
+            'eye_in_hand_calibration = robotic_arm.eye_in_hand_calibration:main',
         ],
     },
 )
