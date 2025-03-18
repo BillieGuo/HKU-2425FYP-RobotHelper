@@ -41,43 +41,6 @@ class SerialNode(Node):
                         # self.last_time = time.time()
                         # self.get_logger().info(f"Published variables: {variables}, Time diff: {time_diff}")
                                         
-        # transform = TransformStamped()
-        # transform.header.stamp = self.get_clock().now().to_msg()
-        # transform.header.frame_id = 'odom'
-        # transform.child_frame_id = 'base_link'
-
-        # # Set the transform translation and rotation using self.variables
-        # transform.transform.translation.x = float(self.variables[0])
-        # transform.transform.translation.y = float(self.variables[1])
-        # transform.transform.translation.z = 0.0
-        # # Convert theta (yaw) to quaternion
-        # theta = float(self.variables[2])
-        # qx = 0.0
-        # qy = 0.0
-        # qz = math.sin(theta / 2.0)
-        # qw = math.cos(theta / 2.0)
-        
-        # transform.transform.rotation.x = 0.0
-        # transform.transform.rotation.y = 0.0
-        # transform.transform.rotation.z = qz
-        # transform.transform.rotation.w = qw
-
-        # self.tf_broadcaster1.sendTransform(transform)
-        
-        # odom = Odometry()
-        # # Fill in the Odometry message with appropriate data
-        # odom.header.stamp = self.get_clock().now().to_msg()
-        # odom.header.frame_id = 'odom'
-        # odom.child_frame_id = 'base_link'
-        # odom.pose.pose.position.x = float(self.variables[0])
-        # odom.pose.pose.position.y = float(self.variables[1])
-        # odom.pose.pose.position.z = 0.0
-        # odom.pose.pose.orientation.x = 0.0
-        # odom.pose.pose.orientation.y = 0.0
-        # odom.pose.pose.orientation.z = math.sin(theta / 2.0)
-        # odom.pose.pose.orientation.w = math.cos(theta / 2.0)
-        
-        # self.odom_pub.publish(odom)
         
     def cmdvel_callback(self, msg):
         self.get_logger().info(f"Received cmd_vel: {msg}")
@@ -98,7 +61,6 @@ class SerialNode(Node):
         # Send the byte array to the serial port
         self.ser.write(tx_buf)
         self.get_logger().info(f"Sent cmd_vel: {tx_buf}")
-    # def cmdvel_callback(self, msg):
         pass
 
 def main(args=None):
