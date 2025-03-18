@@ -1,4 +1,11 @@
 import rclpy
+from rclpy.node import Node
+import tf2_ros
+from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
+from geometry_msgs.msg import TransformStamped
+import os
+import yaml
+import numpy as np
 from interbotix_xs_modules.xs_robot.arm import InterbotixManipulatorXS
 from interbotix_common_modules.common_robot.robot import robot_shutdown, robot_startup
 from enum import Enum
@@ -14,7 +21,21 @@ class ArmManipulator(InterbotixManipulatorXS):
             group_name='arm',
             gripper_name='gripper',
         )
+        self.node = self.core.get_node()
+        # c2g is camera to gripper transform
+        self.c2g_broadcaster = StaticTransformBroadcaster(self.node)
+        self.broadcast_c2g_transform()
+
         self.state = ArmState.CAPTURING
+    
+    def broadcast_c2g_transform(self):
+        tf_file_path =  os.path.join(os.path.expanduser("~/fyp_ws/src/HKU-2425FYP-RobotHelper/grasp/robotic_arm/robotic_arm/config"), "transform_camera2gripper.yaml")
+        with open(tf_file_path, "r") as file:
+            c2g_file = yaml.safe_load(file)
+        c2g = np.array(c2g_file["camera2gripper"])
+        c2g_transform = TransformStamped()
+        c2g_transform.header.frame_id = "vx300s/ee_gripper_link"
+        c2g_transform.child_frame_id = "camera_optical_link"
 
     def run(self):
         try:
