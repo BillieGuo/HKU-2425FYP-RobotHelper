@@ -6,15 +6,15 @@ def generate_launch_description():
     return LaunchDescription(
         [
             Node(
-                package="gdino_sam",
-                executable="image_processor_node",
-                name="image_processor",
+                package="anygrasp",
+                executable="anygrasp_node",
+                name="anygrasp_node",
                 output="screen",
              ),
             Node(
-                package="gdino_sam",
-                executable="prompt_node",
-                name="prompt_node",
+                package="anygrasp",
+                executable="grasp_responder",
+                name="grasp_responder",
                 output="screen",
             ),
         ]

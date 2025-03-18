@@ -1,0 +1,8 @@
+paths:
+  package_path: "/home/intern/fyp_ws/src/HKU-2425FYP-RobotHelper/grasp/anygrasp/"
+  record_path: "assets/anygrasp_records/"
+
+parameters:
+  max_gripper_width: 0.07
+  gripper_height: 0.03
+  max_grasp_number: 5
