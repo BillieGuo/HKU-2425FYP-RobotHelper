@@ -2,7 +2,10 @@ import rclpy
 from rclpy.node import Node
 import tf2_ros
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
+from tf2_ros import TransformBroadcaster
 from geometry_msgs.msg import TransformStamped
+from std_msgs.msg import String
+from custom_msgs.msg import GraspResponse
 import os
 import yaml
 import numpy as np
@@ -27,7 +30,12 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.node = self.core.get_node()
         # c2g is camera to gripper transform
         self.c2g_broadcaster = StaticTransformBroadcaster(self.node)
+        self.grasp_pose_broadcaster = TransformBroadcaster(self.node)
         self.broadcast_c2g_tf()
+        self.create_publisher()
+        self.create_subscriber()
+        # self.READY_POSITIONS = [0, -1.1, 1.1, 0, 0.9, 0]
+        self.CAPTURE_VIEW_JOINTS = [-0.5, -1.1, 0.4, 0, 1.6, 0]
 
         self.state = ArmState.CAPTURING
     
@@ -45,6 +53,64 @@ class ArmManipulator(InterbotixManipulatorXS):
         c2g_tf.transform.translation.z = c2g_matrix[2][3]
         c2g_tf.transform.rotation.x, c2g_tf.transform.rotation.y, c2g_tf.transform.rotation.z, c2g_tf.transform.rotation.w = quaternion_from_matrix(c2g_matrix)
         self.c2g_broadcaster.sendTransform(c2g_tf)
+
+
+    def create_publisher(self):
+        # Publish for the grasp request node
+        self.prompt_pub = self.node.create_publisher(String, "/text_prompt", 10)
+
+    def create_subscriber(self):
+        # translator's prompt
+        self.prompt_sub = self.node.create_subscription(String, "/grasp_prompt", self.prompt_callback, 10)
+        # grasp poses results
+        self.grasp_sub = self.node.create_subscription(GraspResponse, "/robotic_arm/grasp_response", self.grasp_callback, 10)
+
+    def prompt_callback(self, msg):
+        # Receive the prompt from the LLM translator
+        self.node.get_logger().info(f"Received prompt: {msg.data}")
+        self.text_prompt = msg.data
+        self.node.get_logger().info("Release the gripper")
+        self.release()
+        self.node.get_logger().info("Going to capture pose")
+        self.go_to_capture_pose()
+        self.prompt_pub.publish(msg)
+        self.node.get_logger().info("Publish the prompt, waiting for the grasp pose")
+
+    def grasp_callback(self, msg):
+        # Receive the grasp pose from the server
+        self.node.get_logger().info(f"Received grasp pose: {msg}")
+        self.num_grasp_poses = msg.num_grasp_poses
+        self.grasp_poses = msg.grasp_poses
+        self.scores = msg.scores
+        # Use the best grasp pose
+        grasp_pose = self.grasp_poses[0]
+        grasp_pose_tf_msg = TransformStamped()
+        grasp_pose_tf_msg.header.stamp = self.node.get_clock().now().to_msg()
+        grasp_pose_tf_msg.header.frame_id = "camera_optical_link"
+        grasp_pose_tf_msg.child_frame_id = "grasp_pose"
+        grasp_pose_tf_msg.transform.translation.x = grasp_pose.position.x
+        grasp_pose_tf_msg.transform.translation.y = grasp_pose.position.y
+        grasp_pose_tf_msg.transform.translation.z = grasp_pose.position.z
+        grasp_pose_tf_msg.transform.rotation.x = grasp_pose.orientation.x
+        grasp_pose_tf_msg.transform.rotation.y = grasp_pose.orientation.y
+        grasp_pose_tf_msg.transform.rotation.z = grasp_pose.orientation.z
+        grasp_pose_tf_msg.transform.rotation.w = grasp_pose.orientation.w
+        self.grasp_pose_broadcaster.sendTransform(grasp_pose_tf_msg)
+        self.node.get_logger().info("Broadcast the grasp pose")
+        # self.grasp()
+        
+
+
+    def go_to_capture_pose(self):
+        self.arm.set_joint_positions(self.CAPTURE_VIEW_JOINTS, moving_time=5.0)
+
+    def grasp(self):
+        # PWM
+        self.gripper.grasp()
+
+    def release(self):
+        # PWM
+        self.gripper.release()
 
     def run(self):
         try:

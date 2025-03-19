@@ -34,6 +34,7 @@ def draw_tag_info(color_image, tag):
 class robot(InterbotixManipulatorXS):
     def __init__(self, robot_model, group_name, gripper_name):
         super().__init__(robot_model=robot_model, group_name=group_name, gripper_name=gripper_name)
+        self.gripper_pressure = 0.5
         self.READY_POSITIONS = [0, -1.1, 1.1, 0, 0.9, 0]
         self.HIGH_ANGLE = [-0.5, -1.1, 0.4, 0, 1.6, 0]
         robot_startup()
@@ -68,6 +69,26 @@ class robot(InterbotixManipulatorXS):
         else: # In 4*4 matrix
             self.arm.set_ee_pose(pose)
     
+    def release(self):
+        self.gripper.release()
+    
+    def grasp(self):
+        self.gripper.grasp()
+
+    def increase_pressure(self):
+        self.gripper_pressure += 0.1
+        if self.gripper_pressure > 1.0:
+            self.gripper_pressure = 1.0
+        self.gripper.set_pressure(self.gripper_pressure)
+        print(f"Gripper pressure: {self.gripper_pressure}")
+
+    def decrease_pressure(self):
+        self.gripper_pressure -= 0.1
+        if self.gripper_pressure < 0.0:
+            self.gripper_pressure = 0.0
+        self.gripper.set_pressure(self.gripper_pressure)
+        print(f"Gripper pressure: {self.gripper_pressure}")
+
 
     def get_pose(self):
         # In 4*4 matrix
@@ -129,6 +150,14 @@ def main():
             bot.torque_toggle()
         elif key == ord("h"):
             bot.go_to_initial_pose()
+        elif key == ord("j"):
+            bot.grasp()
+        elif key == ord("k"):
+            bot.release()
+        elif key == ord("i"):
+            bot.increase_pressure()
+        elif key == ord("m"):
+            bot.decrease_pressure()
         elif key == ord("\r") or key == ord("\n"):  # Enter key
             if tags:
                 target2base = gripper2base @ camera2gripper @ target2camera
