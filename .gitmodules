@@ -1,3 +1,0 @@
-[submodule "grasp/gdino_sam/GroundingDino"]
-	path = grasp/gdino_sam/GroundingDINO
-	url = https://github.com/IDEA-Research/GroundingDINO.git
