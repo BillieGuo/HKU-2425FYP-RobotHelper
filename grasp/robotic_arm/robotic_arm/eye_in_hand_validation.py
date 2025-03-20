@@ -104,7 +104,7 @@ def main():
     bot = robot(robot_model='vx300s', group_name='arm', gripper_name='gripper')
     bot.go_to_initial_pose()
     # Load transformation        
-    config_dir = os.path.expanduser("~/fyp_ws/src/HKU-2425FYP-RobotHelper/grasp/robotic_arm/robotic_arm/config")
+    config_dir = os.path.expanduser("~/fyp_ws/src/HKU-2425FYP-RobotHelper/grasp/robotic_arm/config")
     transform_file = os.path.join(config_dir, "transform_camera2gripper.yaml")
     with open(transform_file, "r") as file:
         camera2gripper = yaml.safe_load(file)

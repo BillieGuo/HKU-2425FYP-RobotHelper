@@ -133,7 +133,7 @@ def main():
         print(f"R_camera2gripper: {R_camera2gripper},\n t_camera2gripper: {t_camera2gripper}")
         transformation_data = {"camera2gripper": camera2gripper.tolist()}
         
-        save_dir = os.path.expanduser("~/fyp_ws/src/HKU-2425FYP-RobotHelper/grasp/robotic_arm/robotic_arm/config")
+        save_dir = os.path.expanduser("~/fyp_ws/src/HKU-2425FYP-RobotHelper/grasp/robotic_arm/config")
         save_file = os.path.join(save_dir, "transform_camera2gripper.yaml")
         os.makedirs(save_dir, exist_ok=True)
         with open(save_file, "w") as file:

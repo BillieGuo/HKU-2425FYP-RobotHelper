@@ -13,6 +13,9 @@ from interbotix_xs_modules.xs_robot.arm import InterbotixManipulatorXS
 from interbotix_common_modules.common_robot.robot import robot_shutdown, robot_startup
 from enum import Enum
 from tf_transformations import quaternion_from_matrix
+from ament_index_python.packages import get_package_share_directory
+
+package_share_directory = get_package_share_directory("robotic_arm")
 
 # Test 1: Check the Camera optical frame and the Gripper frame
 
@@ -40,7 +43,7 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.state = ArmState.CAPTURING
     
     def broadcast_c2g_tf(self):
-        tf_file_path =  os.path.join(os.path.expanduser("~/fyp_ws/src/HKU-2425FYP-RobotHelper/grasp/robotic_arm/robotic_arm/config"), "transform_camera2gripper.yaml")
+        tf_file_path =  os.path.join(package_share_directory, "config", "transform_camera2gripper.yaml")
         with open(tf_file_path, "r") as file:
             c2g_file = yaml.safe_load(file)
         c2g_matrix = np.array(c2g_file["camera2gripper"])
