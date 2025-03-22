@@ -8,6 +8,7 @@ import socket
 import argparse
 import threading
 from custom_msgs.msg import GraspQuery
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 
 
 # Use realsense_rgbd.sh to open camera.
@@ -27,7 +28,8 @@ class PromptNode(Node):
         self.namespace = namespace
         self.camera_name = camera_name
         self.bridge = CvBridge()
-        self.rgbd_pub = self.create_publisher(RGBD, "/rgbd_remote", 10)
+        qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
+        self.rgbd_pub = self.create_publisher(RGBD, "/rgbd_remote", qos_profile)
         self.prompt_pub = self.create_publisher(String, "/object_prompt", 10)
         self.get_logger().info(f"PromptNode initialized in {self.mode} mode")
 

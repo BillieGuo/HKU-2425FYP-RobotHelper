@@ -2,6 +2,7 @@ import rclpy
 from rclpy.node import Node
 from realsense2_camera_msgs.msg import RGBD
 from std_msgs.msg import String
+from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import numpy as np
 import yaml
@@ -10,6 +11,7 @@ import os
 from .gdino_sam import GDinoSAM
 from datetime import datetime
 import cv2
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 
 # RGBD Message
 # std_msgs/Header header
@@ -46,13 +48,17 @@ class ImageProcessor(Node):
         self.rgb_camera_info = None
         self.depth_camera_info = None
 
-        self.rgbd_sub = self.create_subscription(RGBD, "/rgbd_remote", self.rgbd_callback, 10)
-        self.prompt_sub = self.create_subscription(String, "/object_prompt", self.prompt_callback, 10)
+        qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
+        # qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
+        self.rgbd_sub = self.create_subscription(RGBD, "/rgbd_remote", self.rgbd_callback, qos_profile)
+        self.prompt_sub = self.create_subscription(String, "/object_prompt", self.prompt_callback, qos_profile)
         self.cropped_rgbd_pub = self.create_publisher(RGBD, "/cropped_rgbd", 10)
+        self.debug_color_pub = self.create_publisher(Image, "/server_debug/cropped_color", 10)
+        self.timer = self.create_timer(1.0, self.timer_callback)
         self.get_logger().info("The image_processor node initialized successfully, listening to the prompt\n")
 
-    def rgbd_callback(self, msg):
-        # self.get_logger().info("RGBD images received\n")
+    def rgbd_callback(self, msg: RGBD):
+        self.get_logger().info("RGBD images received\n")
         self.rgb_image = self.bridge.imgmsg_to_cv2(msg.rgb, "bgr8")
         self.depth_image = self.bridge.imgmsg_to_cv2(msg.depth, "16UC1")
         self.rgb_camera_info = msg.rgb_camera_info
@@ -60,17 +66,25 @@ class ImageProcessor(Node):
 
     def prompt_callback(self, msg):
         self.prompt = msg.data
-        self.get_logger().info(f"Prompt '{self.prompt}' received\n")
+        self.get_logger().info(f"Prompt '{self.prompt}' received")
+    
+    def timer_callback(self):
+        if self.prompt is None:
+            return
         if self.rgb_image is not None and self.depth_image is not None:
             self.get_logger().info("Start the inference\n")
             mask = self.gdino_sam.infer(self.rgb_image, self.depth_image, self.prompt)
             if mask is None:
                 self.get_logger().info("gdino_sam failed\n")
+                self.prompt = None
+                self.rgb_image = None
+                self.depth_image = None
                 return
             cropped_color, cropped_depth = self.crop_image(self.rgb_image, self.depth_image, mask)
             self.publish_cropped_images(cropped_color, cropped_depth)
-            self.take_record(self.rgb_image, self.depth_image, cropped_color, cropped_depth, mask)
+            # self.take_record(self.rgb_image, self.depth_image, cropped_color, cropped_depth, mask)
             self.prompt = None
+            self.get_logger().info("Image processing done\n")
 
     def crop_image(self, color_image, depth_image, mask):
         masked_color = np.zeros_like(color_image)
@@ -86,6 +100,7 @@ class ImageProcessor(Node):
         rgbd_msg.rgb_camera_info = self.rgb_camera_info
         rgbd_msg.depth_camera_info = self.depth_camera_info
         self.cropped_rgbd_pub.publish(rgbd_msg)
+        self.debug_color_pub.publish(rgbd_msg.rgb)
         self.get_logger().info("Cropped RGBD message published\n")
 
     def take_record(self, rgb_image, depth_image, cropped_color, cropped_depth, mask):
