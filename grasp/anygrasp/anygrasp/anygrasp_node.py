@@ -41,7 +41,7 @@ class AnyGraspNode(Node):
             checkpoint_path=os.path.join(package_share_directory, "log", "checkpoint_detection.tar"),
             max_gripper_width=self.config["parameters"]["max_gripper_width"],
             gripper_height=self.config["parameters"]["gripper_height"],
-            top_down_grasp=False,
+            top_down_grasp=True,
             debug=True,
         )
         self.anygrasp = AnyGrasp(cfgs)
@@ -60,13 +60,17 @@ class AnyGraspNode(Node):
         rgb_camera_info = msg.rgb_camera_info
         # depth_camera_info = msg.depth_camera_info
 
-        self.get_logger().info("Generating grasp poses...")
+        self.get_logger().info("Cropped rgbd received, generating grasp poses...")
         grasp_response, cloud = self.generate_grasp_poses(rgb_image, depth_image, rgb_camera_info)
-        self.get_logger().info(f"Generated {grasp_response.num_grasp_poses} grasp poses. Publishing results...")
-        self.grasp_pub.publish(grasp_response)
-        self.get_logger().info("Saving the record...")
-        self.save_record(grasp_response, rgb_image, depth_image, cloud)
-        self.get_logger().info("Keep listening to /cropped_rgbd\n")
+        num = grasp_response.num_grasp_poses
+        if num != 0:
+            self.get_logger().info(f"Generated {grasp_response.num_grasp_poses} grasp poses. Publishing results...")
+            self.grasp_pub.publish(grasp_response)
+            self.get_logger().info("Saving the record...")
+            self.save_record(grasp_response, rgb_image, depth_image, cloud)
+            self.get_logger().info("Keep listening to /cropped_rgbd\n")
+        else:
+            self.get_logger().info("No grasp poses detected. Do not publish any grasp response. Keep listening to /cropped_rgbd\n")
 
     def generate_grasp_poses(self, rgb_image, depth_image, camera_info):
         points, colors, lims = self.prepare_data(rgb_image, depth_image, camera_info)
@@ -74,12 +78,12 @@ class AnyGraspNode(Node):
         # print("Points shape:", points.shape, "Points type:", points.dtype)
         # print("Colors shape:", colors.shape, "Colors type:", colors.dtype)
 
-        # generate grasp poses
+        # generate grasp poses and cloud (open3d.geometry.PointCloud)
         gg, cloud = self.anygrasp.get_grasp(points, colors, lims=lims, apply_object_mask=True, dense_grasp=False, collision_detection=True)
 
-        if len(gg) == 0:
+        if gg is None:
             self.get_logger().info("No Grasp detected after collision detection!")
-            return GraspResponse(num_grasp_poses=0, grasp_poses=[], scores=[])
+            return GraspResponse(num_grasp_poses=0, grasp_poses=[], scores=[]), cloud
         else:
             print(f"Got {len(gg)} grasps")
 
@@ -123,9 +127,9 @@ class AnyGraspNode(Node):
         points_y = (ymap - cy) / fy * points_z
 
         # set workspace to filter output grasps
-        xmin, xmax = -0.19, 0.12
-        ymin, ymax = 0.02, 0.15
-        zmin, zmax = 0.0, 1.0
+        xmin, xmax = -1.0, 1.0
+        ymin, ymax = -1.0, 1.0
+        zmin, zmax = 0.0, 3.0
         lims = [xmin, xmax, ymin, ymax, zmin, zmax]
 
         # set your workspace to crop point cloud

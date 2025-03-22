@@ -23,7 +23,6 @@ class GraspResponseNode(Node):
             except (ConnectionRefusedError, OSError):
                 self.get_logger().warn("Connection failed, retrying...")
                 self.responder_sock = None
-                rclpy.sleep(1)
 
     def listen_to_responder(self):
         while rclpy.ok():

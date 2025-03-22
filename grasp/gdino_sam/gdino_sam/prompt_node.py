@@ -2,12 +2,14 @@ import rclpy
 from rclpy.node import Node
 import rclpy.serialization
 from realsense2_camera_msgs.msg import RGBD
+from sensor_msgs.msg import Image
 from std_msgs.msg import String
 from cv_bridge import CvBridge
 import socket
 import argparse
 import threading
 from custom_msgs.msg import GraspQuery
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 
 
 # Use realsense_rgbd.sh to open camera.
@@ -27,7 +29,9 @@ class PromptNode(Node):
         self.namespace = namespace
         self.camera_name = camera_name
         self.bridge = CvBridge()
-        self.rgbd_pub = self.create_publisher(RGBD, "/rgbd_remote", 10)
+        qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
+        self.rgbd_pub = self.create_publisher(RGBD, "/rgbd_remote", qos_profile)
+        self.color_debug_pub = self.create_publisher(Image, "/server_debug/color_prompt", qos_profile)
         self.prompt_pub = self.create_publisher(String, "/object_prompt", 10)
         self.get_logger().info(f"PromptNode initialized in {self.mode} mode")
 
@@ -72,6 +76,9 @@ class PromptNode(Node):
                     self.get_logger().info(f"The grasp query received, with the text prompt {prompt_msg.data}.")
                     self.rgbd_pub.publish(rgbd_msg)
                     self.prompt_pub.publish(prompt_msg)
+                    
+                    # Publish the color image from the RGBD message
+                    self.color_debug_pub.publish(rgbd_msg.rgb)
                     self.get_logger().info("RGBD images and prompt message published to /rgbd_remote and /object_prompt topics.")
                 except (ConnectionResetError, BrokenPipeError):
                     self.get_logger().warn("Client disconnected. Waiting for new connection...")

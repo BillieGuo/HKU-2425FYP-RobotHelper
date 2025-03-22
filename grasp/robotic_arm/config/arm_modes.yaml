@@ -1,0 +1,22 @@
+groups:
+  arm:
+    operating_mode: position
+    profile_type: time
+    profile_velocity: 2000
+    profile_acceleration: 300
+    torque_enable: true
+
+# Using pwm to control gripper, torque controllable
+singles:
+  gripper:
+    operating_mode: pwm
+
+# using joint rad to control the gripper, moving time controllable
+# singles:
+#   gripper:
+#     operating_mode: position
+#     profile_type: time
+#     profile_velocity: 2000
+#     profile_acceleration: 300
+#     torque_enable: true
+
