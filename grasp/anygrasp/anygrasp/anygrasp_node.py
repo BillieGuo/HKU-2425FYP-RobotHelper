@@ -41,7 +41,7 @@ class AnyGraspNode(Node):
             checkpoint_path=os.path.join(package_share_directory, "log", "checkpoint_detection.tar"),
             max_gripper_width=self.config["parameters"]["max_gripper_width"],
             gripper_height=self.config["parameters"]["gripper_height"],
-            top_down_grasp=False,
+            top_down_grasp=True,
             debug=True,
         )
         self.anygrasp = AnyGrasp(cfgs)

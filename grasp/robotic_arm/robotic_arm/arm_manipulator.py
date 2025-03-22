@@ -15,8 +15,6 @@ from ament_index_python.packages import get_package_share_directory
 
 package_share_directory = get_package_share_directory("robotic_arm")
 
-# Test 1: Check the Camera optical frame and the Gripper frame
-
 class ArmState(Enum):
     IDLE = 1
     CAPTURING = 2
@@ -114,9 +112,7 @@ class ArmManipulator(InterbotixManipulatorXS):
         g2b_matrix = self.pose_to_matrix(g2b_tf)
         # g2b_matrix = self.arm.get_ee_pose()
         t2b_matrix = g2b_matrix @ c2g_matrix  @ t2c_matrix
-        # Calibrate the orientation of the grasp pose
-        # realgrasp2target = rotation_matrix(np.pi/2, [1, 0, 0])
-        # t2b_matrix = t2b_matrix @ realgrasp2target
+        t2b_matrix = self.calibrate(t2b_matrix)
         grasp_pose_tf_msg = TransformStamped()
         grasp_pose_tf_msg.header.stamp = self.node.get_clock().now().to_msg()
         grasp_pose_tf_msg.header.frame_id = "vx300s/base_link"
@@ -132,9 +128,21 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.t2b_broadcaster.sendTransform(grasp_pose_tf_msg)
         self.node.get_logger().info("Broadcast the grasp pose")
         # Move the arm to the grasp pose
+        # Consider adding a waypoint
         self.arm.set_ee_pose_matrix(t2b_matrix, moving_time=10.0)
-        self.grasp()
+        self.grasp(3.0)
+        self.go_to_capture_pose()
         self.state=ArmState.IDLE
+
+    def calibrate(self, matrix):
+        # Calibrate the orientation of the grasp pose
+        # If the angle of the z-axes between 2 frames is negative, rotate the target around the x-axis by 180 degrees
+        z_axis = matrix[:3, 2]
+        if z_axis[2] < 0:
+            rotation_180_x = rotation_matrix(np.pi, [1, 0, 0])
+            matrix = matrix @ rotation_180_x
+        return matrix
+
         
     def pose_to_matrix(self, pose: Pose | Transform):
         if isinstance(pose, Transform):
@@ -151,9 +159,9 @@ class ArmManipulator(InterbotixManipulatorXS):
     def go_to_capture_pose(self):
         self.arm.set_joint_positions(self.CAPTURE_VIEW_JOINTS, moving_time=5.0)
 
-    def grasp(self):
+    def grasp(self, delay = 1.0):
         self.gripper.set_pressure(self.grasp_pressure)
-        self.gripper.grasp()
+        self.gripper.grasp(delay=delay)
 
     def release(self):
         self.gripper.set_pressure(0.0)
