@@ -2,6 +2,7 @@ import pyrealsense2 as rs
 from pupil_apriltags import Detector
 from interbotix_common_modules.common_robot.robot import robot_shutdown, robot_startup
 from interbotix_xs_modules.xs_robot.arm import InterbotixManipulatorXS
+from interbotix_xs_msgs.msg import JointSingleCommand
 import cv2
 import numpy as np
 import os
@@ -33,8 +34,16 @@ def draw_tag_info(color_image, tag):
 
 class robot(InterbotixManipulatorXS):
     def __init__(self, robot_model, group_name, gripper_name):
+        # Operating Mode: PWM
+        self.gripper_pressure = 0.7
+        # lower_lim = 60
+        # upper_lim = 200
+        # Operating Mode: Position
+        self.gripper_command = JointSingleCommand(name='gripper')
+        self.gripper_command.cmd = 0.0
+
+        # super().__init__(robot_model=robot_model, group_name=group_name, gripper_name=gripper_name, gripper_pressure_lower_limit=lower_lim, gripper_pressure_upper_limit=upper_lim)
         super().__init__(robot_model=robot_model, group_name=group_name, gripper_name=gripper_name)
-        self.gripper_pressure = 0.5
         self.READY_POSITIONS = [0, -1.1, 1.1, 0, 0.9, 0]
         self.HIGH_ANGLE = [-0.5, -1.1, 0.4, 0, 1.6, 0]
         robot_startup()
@@ -70,10 +79,24 @@ class robot(InterbotixManipulatorXS):
             self.arm.set_ee_pose(pose)
     
     def release(self):
+        # Operating Mode: PWM
+        # self.gripper.set_pressure(0.0) # Release slowly
+        self.gripper.set_pressure(self.gripper_pressure) # Release slowly
         self.gripper.release()
+        # Operating Mode: Position
+        # self.gripper_command.cmd += 0.1
+        # self.arm.set_trajectory_time(0.5)
+        # self.gripper.core.pub_single.publish(self.gripper_command)
+        # print(f"Gripper released {self.gripper_command.cmd}")
     
     def grasp(self):
+        # Operating Mode: PWM
+        self.gripper.set_pressure(self.gripper_pressure) # Grasp custom pressure 
         self.gripper.grasp()
+        # Operating Mode: Position
+        # self.gripper_command.cmd -= 0.1
+        # self.gripper.core.pub_single.publish(self.gripper_command)
+        # print(f"Gripper grasped {self.gripper_command.cmd}")
 
     def increase_pressure(self):
         self.gripper_pressure += 0.1
