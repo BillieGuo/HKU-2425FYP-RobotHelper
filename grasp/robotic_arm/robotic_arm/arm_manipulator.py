@@ -1,9 +1,7 @@
 import rclpy
-from rclpy.node import Node
-import tf2_ros
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
-from tf2_ros import TransformBroadcaster
-from geometry_msgs.msg import TransformStamped
+from tf2_ros import Buffer, TransformListener
+from geometry_msgs.msg import TransformStamped, Pose, Transform
 from std_msgs.msg import String
 from custom_msgs.msg import GraspResponse
 import os
@@ -12,7 +10,7 @@ import numpy as np
 from interbotix_xs_modules.xs_robot.arm import InterbotixManipulatorXS
 from interbotix_common_modules.common_robot.robot import robot_shutdown, robot_startup
 from enum import Enum
-from tf_transformations import quaternion_from_matrix
+from tf_transformations import quaternion_from_matrix, quaternion_matrix, rotation_matrix
 from ament_index_python.packages import get_package_share_directory
 
 package_share_directory = get_package_share_directory("robotic_arm")
@@ -20,8 +18,9 @@ package_share_directory = get_package_share_directory("robotic_arm")
 # Test 1: Check the Camera optical frame and the Gripper frame
 
 class ArmState(Enum):
-    CAPTURING = 1
-    GRASPING = 2
+    IDLE = 1
+    CAPTURING = 2
+    GRASPING = 3
 
 class ArmManipulator(InterbotixManipulatorXS):
     def __init__(self):
@@ -29,32 +28,42 @@ class ArmManipulator(InterbotixManipulatorXS):
             robot_model='vx300s',
             group_name='arm',
             gripper_name='gripper',
+            gripper_pressure_lower_limit=60,
+            gripper_pressure_upper_limit=200
         )
         self.node = self.core.get_node()
-        # c2g is camera to gripper transform
+        # tf
         self.c2g_broadcaster = StaticTransformBroadcaster(self.node)
-        self.grasp_pose_broadcaster = TransformBroadcaster(self.node)
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self.node)
+        self.t2b_broadcaster = StaticTransformBroadcaster(self.node)
         self.broadcast_c2g_tf()
+
+        # ros
         self.create_publisher()
         self.create_subscriber()
-        # self.READY_POSITIONS = [0, -1.1, 1.1, 0, 0.9, 0]
-        self.CAPTURE_VIEW_JOINTS = [-0.5, -1.1, 0.4, 0, 1.6, 0]
 
-        self.state = ArmState.CAPTURING
+        # arm
+        self.grasp_pressure = 0.5
+        self.grasp()
+        self.CAPTURE_VIEW_JOINTS = [0.0, -1.2, 0.7, 0, 1.2, 0]
+        self.go_to_capture_pose()
+        self.state = ArmState.IDLE
+        self.node.get_logger().info("ArmManipulator initialized")
     
     def broadcast_c2g_tf(self):
         tf_file_path =  os.path.join(package_share_directory, "config", "transform_camera2gripper.yaml")
         with open(tf_file_path, "r") as file:
             c2g_file = yaml.safe_load(file)
-        c2g_matrix = np.array(c2g_file["camera2gripper"])
+        self.c2g_matrix = np.array(c2g_file["camera2gripper"])
         c2g_tf = TransformStamped()
         c2g_tf.header.stamp = self.node.get_clock().now().to_msg()
         c2g_tf.header.frame_id = "vx300s/ee_gripper_link"
-        c2g_tf.child_frame_id = "camera_optical_link"
-        c2g_tf.transform.translation.x = c2g_matrix[0][3]
-        c2g_tf.transform.translation.y = c2g_matrix[1][3]
-        c2g_tf.transform.translation.z = c2g_matrix[2][3]
-        c2g_tf.transform.rotation.x, c2g_tf.transform.rotation.y, c2g_tf.transform.rotation.z, c2g_tf.transform.rotation.w = quaternion_from_matrix(c2g_matrix)
+        c2g_tf.child_frame_id = "D435i_color_optical_link"
+        c2g_tf.transform.translation.x = self.c2g_matrix[0][3]
+        c2g_tf.transform.translation.y = self.c2g_matrix[1][3]
+        c2g_tf.transform.translation.z = self.c2g_matrix[2][3]
+        c2g_tf.transform.rotation.x, c2g_tf.transform.rotation.y, c2g_tf.transform.rotation.z, c2g_tf.transform.rotation.w = quaternion_from_matrix(self.c2g_matrix)
         self.c2g_broadcaster.sendTransform(c2g_tf)
 
 
@@ -69,6 +78,10 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.grasp_sub = self.node.create_subscription(GraspResponse, "/robotic_arm/grasp_response", self.grasp_callback, 10)
 
     def prompt_callback(self, msg):
+        # if self.state != ArmState.IDLE:
+        #     self.node.get_logger().warn("Arm is not in IDLE state")
+        #     return
+        self.state = ArmState.CAPTURING
         # Receive the prompt from the LLM translator
         self.node.get_logger().info(f"Received prompt: {msg.data}")
         self.text_prompt = msg.data
@@ -81,39 +94,71 @@ class ArmManipulator(InterbotixManipulatorXS):
 
     def grasp_callback(self, msg):
         # Receive the grasp pose from the server
-        self.node.get_logger().info(f"Received grasp pose: {msg}")
+        self.state = ArmState.GRASPING
+        # self.node.get_logger().info(f"Received grasp pose: {msg}")
         self.num_grasp_poses = msg.num_grasp_poses
         self.grasp_poses = msg.grasp_poses
         self.scores = msg.scores
         # Use the best grasp pose
-        grasp_pose = self.grasp_poses[0]
+        target_pose = self.grasp_poses[0]
+        self.node.get_logger().info(f"Using the best grasp pose: {target_pose}")
+        # Calculate and publish the static tf from target to base
+        t2c_matrix = self.pose_to_matrix(target_pose)
+        c2g_matrix = self.c2g_matrix
+        g2b_tf: TransformStamped = self.tf_buffer.lookup_transform(
+            "vx300s/base_link",
+            "vx300s/ee_gripper_link",
+            rclpy.time.Time()
+        )
+        g2b_tf = g2b_tf.transform
+        g2b_matrix = self.pose_to_matrix(g2b_tf)
+        # g2b_matrix = self.arm.get_ee_pose()
+        t2b_matrix = g2b_matrix @ c2g_matrix  @ t2c_matrix
+        # Calibrate the orientation of the grasp pose
+        # realgrasp2target = rotation_matrix(np.pi/2, [1, 0, 0])
+        # t2b_matrix = t2b_matrix @ realgrasp2target
         grasp_pose_tf_msg = TransformStamped()
         grasp_pose_tf_msg.header.stamp = self.node.get_clock().now().to_msg()
-        grasp_pose_tf_msg.header.frame_id = "camera_optical_link"
+        grasp_pose_tf_msg.header.frame_id = "vx300s/base_link"
         grasp_pose_tf_msg.child_frame_id = "grasp_pose"
-        grasp_pose_tf_msg.transform.translation.x = grasp_pose.position.x
-        grasp_pose_tf_msg.transform.translation.y = grasp_pose.position.y
-        grasp_pose_tf_msg.transform.translation.z = grasp_pose.position.z
-        grasp_pose_tf_msg.transform.rotation.x = grasp_pose.orientation.x
-        grasp_pose_tf_msg.transform.rotation.y = grasp_pose.orientation.y
-        grasp_pose_tf_msg.transform.rotation.z = grasp_pose.orientation.z
-        grasp_pose_tf_msg.transform.rotation.w = grasp_pose.orientation.w
-        self.grasp_pose_broadcaster.sendTransform(grasp_pose_tf_msg)
+        grasp_pose_tf_msg.transform.translation.x = t2b_matrix[0][3]
+        grasp_pose_tf_msg.transform.translation.y = t2b_matrix[1][3]
+        grasp_pose_tf_msg.transform.translation.z = t2b_matrix[2][3]
+        x,y,z,w = quaternion_from_matrix(t2b_matrix) 
+        grasp_pose_tf_msg.transform.rotation.x = x
+        grasp_pose_tf_msg.transform.rotation.y = y
+        grasp_pose_tf_msg.transform.rotation.z = z
+        grasp_pose_tf_msg.transform.rotation.w = w
+        self.t2b_broadcaster.sendTransform(grasp_pose_tf_msg)
         self.node.get_logger().info("Broadcast the grasp pose")
-        # self.grasp()
+        # Move the arm to the grasp pose
+        self.arm.set_ee_pose_matrix(t2b_matrix, moving_time=10.0)
+        self.grasp()
+        self.state=ArmState.IDLE
         
-
+    def pose_to_matrix(self, pose: Pose | Transform):
+        if isinstance(pose, Transform):
+            translation = np.array([pose.translation.x, pose.translation.y, pose.translation.z])
+            rotation = np.array([pose.rotation.x, pose.rotation.y, pose.rotation.z, pose.rotation.w])
+        else:
+            translation = np.array([pose.position.x, pose.position.y, pose.position.z])
+            rotation = np.array([pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w])
+        matrix = np.eye(4)
+        matrix = quaternion_matrix(rotation)
+        matrix[:3, 3] = translation
+        return matrix
 
     def go_to_capture_pose(self):
         self.arm.set_joint_positions(self.CAPTURE_VIEW_JOINTS, moving_time=5.0)
 
     def grasp(self):
-        # PWM
+        self.gripper.set_pressure(self.grasp_pressure)
         self.gripper.grasp()
 
     def release(self):
-        # PWM
+        self.gripper.set_pressure(0.0)
         self.gripper.release()
+
 
     def run(self):
         try:
@@ -126,16 +171,16 @@ class ArmManipulator(InterbotixManipulatorXS):
 
     def handle_state(self):
         if self.state == ArmState.CAPTURING:
-            self.capture()
+            self.handle_capture()
         elif self.state == ArmState.GRASPING:
-            self.grasp()
+            self.handle_grasp()
 
-    def capture(self):
+    def handle_capture(self):
         # Capturing logic
         # Wait for a specific command to transition to the next state
         pass
 
-    def grasp(self):
+    def handle_grasp(self):
         # Grasping logic
         # Move the arm and the gripper to grasp an object
         pass
