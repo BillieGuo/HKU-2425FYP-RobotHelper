@@ -34,5 +34,10 @@ license/
 
 # Test files
 test/
+
+# Records
 image_process_record/
 anygrasp_records/
+
+# Transformation
+transform_camera2gripper.yaml
