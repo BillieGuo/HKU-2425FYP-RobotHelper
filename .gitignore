@@ -7,6 +7,7 @@ venv/
 env/
 .venv/
 .env/
+.env
 
 # IDE/editor directories and files
 .vscode/
