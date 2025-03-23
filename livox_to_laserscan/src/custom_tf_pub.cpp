@@ -28,7 +28,7 @@ private:
         t1.child_frame_id = "laser";
         t1.transform.translation.x = 0.24;
         t1.transform.translation.y = 0.0;
-        t1.transform.translation.z = 0.0;
+        t1.transform.translation.z = 0.1;
         t1.transform.rotation.x = 0.0;
         t1.transform.rotation.y = 0.0;
         t1.transform.rotation.z = 0.0;
@@ -40,7 +40,7 @@ private:
         t2.child_frame_id = "base_link";
         t2.transform.translation.x = 0.0;
         t2.transform.translation.y = 0.0;
-        t2.transform.translation.z = 0.1;
+        t2.transform.translation.z = 0.0;
         t2.transform.rotation.x = 0.0;
         t2.transform.rotation.y = 0.0;
         t2.transform.rotation.z = 0.0;
