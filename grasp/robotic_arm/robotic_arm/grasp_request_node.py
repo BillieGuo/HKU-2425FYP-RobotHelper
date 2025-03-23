@@ -6,6 +6,9 @@ from std_msgs.msg import String
 from custom_msgs.msg import GraspQuery
 import socket
 import argparse
+from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
+from tf2_ros import Buffer, TransformListener
+from geometry_msgs.msg import TransformStamped
 
 
 class GraspRequestNode(Node):
@@ -17,6 +20,9 @@ class GraspRequestNode(Node):
         rgbd_topic = f"/{camera_namespace}/{camera_name}/rgbd"
         self.rgbd_sub = self.create_subscription(RGBD, rgbd_topic, self.rgbd_callback, 10)
         self.prompt_sub = self.create_subscription(String, "/text_prompt", self.prompt_callback, 10)
+        self.tf_broadcaster = StaticTransformBroadcaster(self)
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
         self.get_logger().info(f"Grasp request node initialized with camera namespace: {camera_namespace}, camera name: {camera_name}")
         self.connect_to_server()
 
@@ -50,10 +56,22 @@ class GraspRequestNode(Node):
             # Send the actual data
             self.sock.sendall(data)
             self.get_logger().info("GraspQuery sent to server")
+            self.pub_static_grasp_camera()
         except (BrokenPipeError, ConnectionResetError):
             self.get_logger().warn("Connection to server lost. Reconnecting...")
             self.connect_to_server()
             self.send_to_server(data)
+    
+    def pub_static_grasp_camera(self):
+        # Look up the camera_frame to base_link transform and publish it statically
+        grasp_camera_tf: TransformStamped = self.tf_buffer.lookup_transform(
+            "vx300s/base_link",
+            "camera_frame",
+            rclpy.time.Time()
+        )
+        grasp_camera_tf.header.stamp = self.get_clock().now().to_msg()
+        grasp_camera_tf.child_frame_id = "static_grasp_camera_frame"
+        self.tf_broadcaster.sendTransform(grasp_camera_tf)
 
     def destroy_node(self):
         if self.sock:
