@@ -12,6 +12,10 @@ from geometry_msgs.msg import Pose
 import yaml
 from datetime import datetime
 from scipy.spatial.transform import Rotation as R  # Add this import
+from sensor_msgs.msg import PointCloud2
+from geometry_msgs.msg import PoseStamped, PoseArray
+import sensor_msgs_py.point_cloud2 as pc2
+from std_msgs.msg import Header
 
 package_share_directory = get_package_share_directory("anygrasp")
 from gsnet import AnyGrasp
@@ -19,12 +23,13 @@ from graspnetAPI import GraspGroup
 
 
 class Config:
-    def __init__(self, checkpoint_path, max_gripper_width, gripper_height, top_down_grasp, debug):
+    def __init__(self, checkpoint_path, max_gripper_width, gripper_height, top_down_grasp, debug, save_record):
         self.checkpoint_path = checkpoint_path
         self.max_gripper_width = max_gripper_width
         self.gripper_height = gripper_height
         self.top_down_grasp = top_down_grasp
         self.debug = debug
+        self.save_record = save_record
 
 
 class AnyGraspNode(Node):
@@ -37,20 +42,27 @@ class AnyGraspNode(Node):
 
         self.bridge = CvBridge()
 
-        cfgs = Config(
+        self.cfgs = Config(
             checkpoint_path=os.path.join(package_share_directory, "log", "checkpoint_detection.tar"),
             max_gripper_width=self.config["parameters"]["max_gripper_width"],
             gripper_height=self.config["parameters"]["gripper_height"],
-            top_down_grasp=True,
-            debug=True,
+            top_down_grasp=self.config["parameters"]["top_down_grasp"],
+            debug=self.config["parameters"]["debug"],
+            save_record=self.config["parameters"]["save_record"],
         )
-        self.anygrasp = AnyGrasp(cfgs)
+        self.anygrasp = AnyGrasp(self.cfgs)
         self.anygrasp.load_net()
         self.get_logger().info(f"AnyGrasp model loaded.\n")
         self.max_grasp_number = int(self.config["parameters"]["max_grasp_number"])
 
         self.rgbd_sub = self.create_subscription(RGBD, "/cropped_rgbd", self.rgbd_callback, 10)
         self.grasp_pub = self.create_publisher(GraspResponse, "/grasp_response", 10)
+        # Debug timer and publishers
+        self.object_pcd = PointCloud2()
+        self.pcd_pub = self.create_publisher(PointCloud2, "/grasp_point_cloud", 10)
+        self.grasp_pose_array = PoseArray()
+        self.pose_pub = self.create_publisher(PoseArray, "/grasp_pose_array", 10)
+        self.timer = self.create_timer(1.0, self.timer_callback) # Keeps the visualization alive 
         self.get_logger().info("The anygrasp_node initialized successfully, listening to /cropped_rgbd\n")
 
     def rgbd_callback(self, msg):
@@ -66,8 +78,11 @@ class AnyGraspNode(Node):
         if num != 0:
             self.get_logger().info(f"Generated {grasp_response.num_grasp_poses} grasp poses. Publishing results...")
             self.grasp_pub.publish(grasp_response)
-            self.get_logger().info("Saving the record...")
-            self.save_record(grasp_response, rgb_image, depth_image, cloud)
+            if self.cfgs.save_record:
+                self.get_logger().info("Saving the record...")
+                self.save_record(grasp_response, rgb_image, depth_image, cloud)
+            if self.cfgs.debug:
+                self.publish_pcd(cloud, grasp_response)
             self.get_logger().info("Keep listening to /cropped_rgbd\n")
         else:
             self.get_logger().info("No grasp poses detected. Do not publish any grasp response. Keep listening to /cropped_rgbd\n")
@@ -169,6 +184,27 @@ class AnyGraspNode(Node):
             yaml.dump(grasp_response_dict, f)
         self.get_logger().info(f"Grasp response saved to {os.path.join(record_dir, 'grasp_response.yaml')}")
 
+    def publish_pcd(self, cloud, grasp_response: GraspResponse):
+        # Publish the point cloud in rviz, frame_id is "static_grasp_camera_frame"
+        header = Header()
+        header.stamp = self.get_clock().now().to_msg()
+        header.frame_id = "static_grasp_camera_frame"
+        points = np.asarray(cloud.points)
+        colors = np.asarray(cloud.colors)
+        cloud_data = np.hstack([points, colors])
+        self.object_pcd = pc2.create_cloud_xyz32(header, cloud_data[:, :3].tolist())
+        self.pcd_pub.publish(self.object_pcd)
+        self.get_logger().info("Published point cloud to /grasp_point_cloud")
+
+        # Publish the grasp poses as PoseArray in rviz, frame_id is "static_grasp_camera_frame"
+        self.grasp_pose_array.header = header
+        self.grasp_pose_array.poses = [pose for pose in grasp_response.grasp_poses]
+        self.pose_pub.publish(self.grasp_pose_array)
+        self.get_logger().info(f"Published {len(self.grasp_pose_array.poses)} poses to /grasp_pose_array")
+
+    def timer_callback(self):
+        self.pcd_pub.publish(self.object_pcd)
+        self.pose_pub.publish(self.grasp_pose_array)
 
 def main(args=None):
     rclpy.init(args=args)

@@ -10,8 +10,9 @@ import numpy as np
 from interbotix_xs_modules.xs_robot.arm import InterbotixManipulatorXS
 from interbotix_common_modules.common_robot.robot import robot_shutdown, robot_startup
 from enum import Enum
-from tf_transformations import quaternion_from_matrix, quaternion_matrix, rotation_matrix
+from tf_transformations import quaternion_from_matrix, quaternion_matrix, rotation_matrix, inverse_matrix, translation_matrix
 from ament_index_python.packages import get_package_share_directory
+import time
 
 package_share_directory = get_package_share_directory("robotic_arm")
 
@@ -31,10 +32,9 @@ class ArmManipulator(InterbotixManipulatorXS):
         )
         self.node = self.core.get_node()
         # tf
-        self.c2g_broadcaster = StaticTransformBroadcaster(self.node)
+        self.tf_braodcaster = StaticTransformBroadcaster(self.node)
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self.node)
-        self.t2b_broadcaster = StaticTransformBroadcaster(self.node)
         self.broadcast_c2g_tf()
 
         # ros
@@ -45,6 +45,7 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.grasp_pressure = 0.5
         self.grasp()
         self.CAPTURE_VIEW_JOINTS = [0.0, -1.2, 0.7, 0, 1.2, 0]
+        # self.CAPTURE_VIEW_JOINTS = [0, -0.96, 1.16, 0, -0.3, 0]
         self.go_to_capture_pose()
         self.state = ArmState.IDLE
         self.node.get_logger().info("ArmManipulator initialized")
@@ -57,12 +58,44 @@ class ArmManipulator(InterbotixManipulatorXS):
         c2g_tf = TransformStamped()
         c2g_tf.header.stamp = self.node.get_clock().now().to_msg()
         c2g_tf.header.frame_id = "vx300s/ee_gripper_link"
-        c2g_tf.child_frame_id = "D435i_color_optical_link"
+        c2g_tf.child_frame_id = "camera_frame"
         c2g_tf.transform.translation.x = self.c2g_matrix[0][3]
         c2g_tf.transform.translation.y = self.c2g_matrix[1][3]
         c2g_tf.transform.translation.z = self.c2g_matrix[2][3]
         c2g_tf.transform.rotation.x, c2g_tf.transform.rotation.y, c2g_tf.transform.rotation.z, c2g_tf.transform.rotation.w = quaternion_from_matrix(self.c2g_matrix)
-        self.c2g_broadcaster.sendTransform(c2g_tf)
+        self.tf_braodcaster.sendTransform(c2g_tf)
+
+    def broadcast_camera_tf(self):
+        # the D435i_color_optical_frame is the same as camera_frame
+        tf: TransformStamped = self.tf_buffer.lookup_transform(
+            "D435i_color_optical_frame",
+            "D435i_link",
+            rclpy.time.Time()
+        )
+        tf.header.stamp = self.node.get_clock().now().to_msg()
+        tf.header.frame_id = "camera_frame"
+        self.tf_braodcaster.sendTransform(tf)
+        # tf: TransformStamped = self.tf_buffer.lookup_transform(
+        #     "D435i_link",
+        #     "D435i_color_optical_frame",
+        #     rclpy.time.Time()
+        # )
+        # print(tf)
+        # tf_matrix = self.pose_to_matrix(tf.transform)
+        # tf_matrix_inv = inverse_matrix(tf_matrix)
+        # tf_inv = TransformStamped()
+        # tf_inv.header.stamp = self.node.get_clock().now().to_msg()
+        # tf_inv.header.frame_id = "camera_frame"
+        # tf_inv.child_frame_id = "D435i_link"
+        # tf_inv.transform.translation.x = tf_matrix_inv[0][3]
+        # tf_inv.transform.translation.y = tf_matrix_inv[1][3]
+        # tf_inv.transform.translation.z = tf_matrix_inv[2][3]
+        # x,y,z,w = quaternion_from_matrix(tf_matrix_inv)
+        # tf_inv.transform.rotation.x = x
+        # tf_inv.transform.rotation.y = y
+        # tf_inv.transform.rotation.z = z
+        # tf_inv.transform.rotation.w = w
+        # self.tf_braodcaster.sendTransform(tf_inv)
 
 
     def create_publisher(self):
@@ -87,6 +120,8 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.release()
         self.node.get_logger().info("Going to capture pose")
         self.go_to_capture_pose()
+        # sleep for 1 sec
+        time.sleep(1)
         self.prompt_pub.publish(msg)
         self.node.get_logger().info("Publish the prompt, waiting for the grasp pose")
 
@@ -125,12 +160,14 @@ class ArmManipulator(InterbotixManipulatorXS):
         grasp_pose_tf_msg.transform.rotation.y = y
         grasp_pose_tf_msg.transform.rotation.z = z
         grasp_pose_tf_msg.transform.rotation.w = w
-        self.t2b_broadcaster.sendTransform(grasp_pose_tf_msg)
+        self.tf_braodcaster.sendTransform(grasp_pose_tf_msg)
         self.node.get_logger().info("Broadcast the grasp pose")
         # Move the arm to the grasp pose
         # Consider adding a waypoint
-        self.arm.set_ee_pose_matrix(t2b_matrix, moving_time=10.0)
-        self.grasp(3.0)
+        waypoint_matrix = t2b_matrix @ translation_matrix([-0.05, 0, 0])
+        self.arm.set_ee_pose_matrix(waypoint_matrix, moving_time=3.0)
+        self.arm.set_ee_pose_matrix(t2b_matrix, moving_time=2.0)
+        self.grasp(5.0)
         self.go_to_capture_pose()
         self.state=ArmState.IDLE
 
@@ -170,6 +207,7 @@ class ArmManipulator(InterbotixManipulatorXS):
 
     def run(self):
         try:
+            self.broadcast_camera_tf()
             robot_startup()
             while rclpy.ok():
                 self.handle_state()
@@ -178,10 +216,17 @@ class ArmManipulator(InterbotixManipulatorXS):
             robot_shutdown()
 
     def handle_state(self):
-        if self.state == ArmState.CAPTURING:
+        if self.state == ArmState.IDLE:
+            self.handle_idle()
+        elif self.state == ArmState.CAPTURING:
             self.handle_capture()
         elif self.state == ArmState.GRASPING:
             self.handle_grasp()
+
+    def handle_idle(self):
+        # Idle logic
+        # Wait for a specific command to transition to the next state
+        pass
 
     def handle_capture(self):
         # Capturing logic
