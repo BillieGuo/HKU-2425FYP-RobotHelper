@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'navigation'
+package_name = 'serial_task'
 
 setup(
     name=package_name,
@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'serial = navigation.serial_task:main',
+            'serial = serial_task.serial_node:main',
         ],
     },
 )

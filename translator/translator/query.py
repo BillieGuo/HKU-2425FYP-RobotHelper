@@ -1,10 +1,18 @@
 import time
 import numpy
 import subprocess
+import rclpy
+from rclpy import Node
 
 from translator.utils import get_config
 from translator.LMP import LMP
 
+
+class QUERY(Node):
+    def __init__(self):
+        super.__init__('Query')
+        
+        
 
 def model_init():
 	cfg = get_config('capllm/configs/config.yaml')['lmps']
@@ -23,5 +31,14 @@ def model_init():
 	coder = LMP("coder", cfg['coder'], fixed_vars, variable_vars)
 	previewer = LMP("previewer", cfg['previewer'])
 	# previewer = None # 
- 
+
 	return previewer, coder
+
+
+def main():
+    rclpy.init()
+    
+    pass
+    
+if __name__ == '__main__':
+    main()

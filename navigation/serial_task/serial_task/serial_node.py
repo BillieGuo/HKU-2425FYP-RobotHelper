@@ -1,9 +1,8 @@
 import serial
 import struct
-import math
+import time
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import TransformStamped
 from tf2_ros import TransformBroadcaster
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist
@@ -13,7 +12,7 @@ class SerialNode(Node):
     def __init__(self):
         super().__init__('serial_node')
         self.timer = self.create_timer(0.0001, self.read_from_serial)
-        self.ser = serial.Serial('/dev/ttyACM0', 115200, timeout=1)
+        self.ser = None
         self.last_time = 0
         self.variables = (0, 0, 0) # x, y, theta
         self.tf_broadcaster1 = TransformBroadcaster(self)
@@ -66,6 +65,14 @@ class SerialNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     serial_node = SerialNode()
+    while True:
+        try:
+            serial_node.ser = serial.Serial('/dev/ttyACM0', 115200, timeout=1)
+            serial_node.get_logger().info(f'Successfully connected to serial port!')
+            break
+        except serial.SerialException:
+            serial_node.get_logger().info(f'No device detected, retrying...')
+            time.sleep(1.0)
     rclpy.spin(serial_node)
     serial_node.ser.close()
     serial_node.destroy_node()
