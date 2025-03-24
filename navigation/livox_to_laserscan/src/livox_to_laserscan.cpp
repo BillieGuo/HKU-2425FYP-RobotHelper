@@ -41,7 +41,7 @@ private:
       float y = point.y;
       float z = point.z;
       // 2.28 edit + cut box at the back (y <= box_y_min && y >= box_y_max) || (x >= box_x_min)
-      if ((x != 0 && y != 0 && (z < 0.3 || z > -0.1)) && (y <= box_y_min || y >= box_y_max || x > box_x_min))
+      if ((x != 0 && y != 0 && (z < 0.3 && z > -0.05)) && (y <= box_y_min || y >= box_y_max || x > box_x_min))
       {
         float range = std::sqrt(x * x + y * y);
         float intensity = static_cast<float>(point.reflectivity);
