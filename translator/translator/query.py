@@ -2,7 +2,7 @@ import time
 import numpy
 import subprocess
 import rclpy
-from rclpy import Node
+from rclpy.node import Node
 from std_msgs.msg import String
 
 from translator.utils import get_config
@@ -11,7 +11,7 @@ from translator.LMP import LMP
 
 class QUERY(Node):
 	def __init__(self):
-		super.__init__('Query')
+		super().__init__("Query")
 		self.master = None 
 		self.navigator = None 
 		self.arm = None 
@@ -39,6 +39,12 @@ class QUERY(Node):
 			'voice_prompt',
 			self.master_response_callback,
 			10)
+		pass
+        
+	def navigator_response_callback(self, msg):
+		pass
+
+	def master_response_callback(self, msg):
 		pass
         
 	def model_init(self):
@@ -80,15 +86,14 @@ class QUERY(Node):
 				# query.publish_cmd("stop")
 				continue
 			model_input = f'Query: {input_prompt}'
-			result, success = self.model(model_input) # result should be a list of actions (strings)
-   
+			result, success = self.master(model_input) # result should be a list of actions (strings)
 			continue
 		pass
 
 def main():
     rclpy.init()
     node = QUERY()
-    rclpy.spin(node)
+    node.run()
     node.destroy_node()
     rclpy.shutdown()
     return

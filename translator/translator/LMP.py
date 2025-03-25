@@ -17,7 +17,8 @@ class LMP:
         self.tokenizer = None
         self.fixed_vars = fixed_vars
         self.variable_vars = variable_vars
-        load_dotenv(dotenv_path=os.getcwd()+'/src/capllm/.env')
+        dotenv_path = get_path(".env")
+        load_dotenv(dotenv_path=dotenv_path)
         self.openai_key = os.getenv("OPENAI_API_KEY")
         self.openai_endpoint = os.getenv("OPENAI_API_ENDPOINT")
         self.openai_version = os.getenv("OPENAI_API_VERSION")
@@ -26,7 +27,7 @@ class LMP:
     
     # get the model & prompts configuration
     def config(self):
-        if 'gpt' in self.cfg['model'] :
+        if 'gpt' in self.cfg['model']:
             openai.api_type = "azure"
             openai.api_key = self.openai_key
             openai.azure_endpoint = self.openai_endpoint
@@ -113,14 +114,15 @@ class LMP:
             if self.cfg['heirarchy'] == 'preview':
                 return final, True
             
+            print(self.name)
             success = True
             # execute the code
             gvars = self.fixed_vars | self.variable_vars
             lvars = {}
             code = self.code_formatting(final)
             success = safe_to_run(code, gvars, lvars)
-            if success: #and self.cfg['save_output']:
-                print(lvars['result'])
+            # if success: #and self.cfg['save_output']:
+            #     print(lvars['result'])
         except KeyboardInterrupt:
             print("KeyboardInterrupt")
             return None, True
