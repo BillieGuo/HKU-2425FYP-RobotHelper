@@ -76,7 +76,7 @@ class LMP:
     # format the code to be executed using subprocess & exec()
     def code_formatting(self, code):
         if self.cfg['heirarchy'] == 'low': # lower level LLM
-            code_prefix = f"import {', '.join(self.fixed_vars.keys())}"+ f"\ncommands = ['source ~/interbotix_ws/install/setup.bash', '''{code}''']\n"
+            code_prefix = f"import {', '.join(self.fixed_vars.keys())}\n"
         else:
             code_prefix = f"import {', '.join(self.fixed_vars.keys())}\n"
             return code_prefix + code
@@ -95,7 +95,7 @@ class LMP:
                     n=1)
                 result = chat_completion.choices[0].message.content
                 final = result
-            else:
+            else: # Llama model
                 self.model.eval()
                 with torch.no_grad():
                     result = self.tokenizer.decode(self.model.generate(inputs=input_ids, max_new_tokens=self.cfg['max_new_tokens'], pad_token_id=self.tokenizer.eos_token_id)[0], skip_special_tokens=True)
@@ -114,13 +114,13 @@ class LMP:
                 return final, True
             
             success = True
-            # # execute the code
-            # gvars = self.fixed_vars | self.variable_vars
-            # lvars = {}
-            # code = self.code_formatting(final)
-            # success = safe_to_run(code, gvars, lvars)
-            # if success: #and self.cfg['save_output']:
-            #     print(lvars['result'])
+            # execute the code
+            gvars = self.fixed_vars | self.variable_vars
+            lvars = {}
+            code = self.code_formatting(final)
+            success = safe_to_run(code, gvars, lvars)
+            if success: #and self.cfg['save_output']:
+                print(lvars['result'])
         except KeyboardInterrupt:
             print("KeyboardInterrupt")
             return None, True

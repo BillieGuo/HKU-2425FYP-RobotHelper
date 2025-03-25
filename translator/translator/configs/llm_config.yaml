@@ -28,7 +28,7 @@ lmp_config:
 
 
         navigator: # low-level planner
-            name: 'pnavigatorlanner'
+            name: 'navigator'
             heirarchy: 'low'
             model: 'gpt-4'
             adapter:  # leave empty if no adapter is used
