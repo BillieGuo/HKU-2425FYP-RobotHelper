@@ -24,7 +24,7 @@ class LMP:
         self.hf_token = os.getenv("HF_TOKEN")
         self.load_model()
     
-    # get the configuration
+    # get the model & prompts configuration
     def config(self):
         if 'gpt' in self.cfg['model'] :
             openai.api_type = "azure"

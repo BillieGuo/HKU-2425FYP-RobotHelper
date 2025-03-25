@@ -1,3 +1,8 @@
+# TODO
+1. env requirement 
+    - openai, dotenv, torch, re, ROS2 (peft, transformer, if using Llama from hf)
+    - LLM strucutre organization
+
 
 # Folder for LLM 
 

@@ -16,38 +16,34 @@ lmp_config:
         #     user_prompts: 'previewer_user_prompt.txt'
         #     load_in_4bit: False
         
-        # coder: # high-level interpreter
-        #     name: 'coder'
-        #     heirarchy: 'high'
-        #     model: 'gpt-4'
-        #     adapter:  # leave empty if no adapter is used
-        #     max_new_tokens: 1024
-        #     sys_prompts: 'coder_sys_prompt.txt'
-        #     user_prompts: 'coder_user_prompt.txt'
-        #     load_in_4bit: False
+        master: # high-level interpreter
+            name: 'master'
+            heirarchy: 'high'
+            model: 'gpt-4'
+            adapter:  # leave empty if no adapter is used
+            max_new_tokens: 1024
+            sys_prompts: 'master_sys_prompt.txt'
+            user_prompts: 'master_user_prompt.txt'
+            load_in_4bit: False
 
 
-        # planner: # low-level planner
-        #     name: 'planner'
-        #     heirarchy: 'low'
-        #     # model: 'llama3-8B-instruct-official-fineTuned'
-        #     model: 'gpt-4'
-        #     adapter:  # leave empty if no adapter is used
-        #     max_new_tokens: 512
-        #     load_in_4bit: True
-        #     # sys_prompts: 'planner_sys_prompt.txt'
-        #     # user_prompts: 'planner_user_prompt.txt'
+        navigator: # low-level planner
+            name: 'pnavigatorlanner'
+            heirarchy: 'low'
+            model: 'gpt-4'
+            adapter:  # leave empty if no adapter is used
+            max_new_tokens: 512
+            load_in_4bit: True
+            sys_prompts: 'navigator_sys_prompt.txt'
+            user_prompts: 'navigator_user_prompt.txt'
             
-        #     # test / demo
-        #     sys_prompts: 'demo_sys.txt'
-        #     user_prompts: 'demo_user.txt'
             
-        # arm: # low-level executor
-        #     name: 'arm'
-        #     heirarchy: 'low'
-        #     model: 'llama3-8B-instruct-official-fineTuned'
-        #     adapter:  # leave empty if no adapter is used
-        #     max_new_tokens: 512
-        #     load_in_4bit: True
-        #     sys_prompts: 'arm_sys_prompt.txt'
-        #     user_prompts: 'arm_user_prompt.txt'
+        arm: # low-level executor
+            name: 'arm'
+            heirarchy: 'low'
+            model: 'gpt-4'
+            adapter:  # leave empty if no adapter is used
+            max_new_tokens: 512
+            load_in_4bit: True
+            sys_prompts: 'arm_sys_prompt.txt'
+            user_prompts: 'arm_user_prompt.txt'
