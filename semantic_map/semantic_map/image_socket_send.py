@@ -14,17 +14,18 @@ import tf_transformations
 import numpy as np
 
 class SocketSender(Node):
-    def __init__(self, camera_frame="camera_link", world_frame="map"):
+    def __init__(self, camera_frame="camera_link", world_frame="map", connect_to='fyp'):
         super().__init__('image_subscriber_socket_sender')
 
+        self.connect_to = connect_to
         self.image_sub = self.create_subscription(
             Image,
-            '/camera/camera/color/image_raw',
+            '/grasp_module/D435i/color/image_raw',
             self.image_callback,
             10)
         self.depth_sub = self.create_subscription(
             Image, 
-            '/camera/camera/aligned_depth_to_color/image_raw', 
+            '/grasp_module/D435i/aligned_depth_to_color/image_raw', 
             self.depth_callback, 
             10)
         
@@ -38,10 +39,15 @@ class SocketSender(Node):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
         self.camera_to_world = None
+    
+    def wait_for_first_images(self):
+        while self.color_image is None or self.depth_image is None:
+            rclpy.spin_once(self)
+            time.sleep(0.1)
 
     def socket_setup(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.connect(('fyp', 8878))  # Replace with your local machine's IP
+        self.sock.connect((self.connect_to, 8812))
 
     def listen_tf(self):
         try:
@@ -117,6 +123,8 @@ def main(args=None):
     rclpy.init(args=args)
     socket_sender = SocketSender()
     try:
+        socket_sender.wait_for_first_images()
+        print("socket connected and first images geT")
         while rclpy.ok():
             rclpy.spin_once(socket_sender, timeout_sec=6.0)
             # socket_sender.listen_tf()
@@ -126,7 +134,7 @@ def main(args=None):
             socket_sender.send_color_image()
             socket_sender.wait_handshake("depth")
             socket_sender.send_depth_image()
-            time.sleep(3)
+            time.sleep(0.01)
     except KeyboardInterrupt:
         pass
     finally:

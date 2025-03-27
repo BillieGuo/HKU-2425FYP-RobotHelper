@@ -15,6 +15,7 @@ class QUERY(Node):
 		self.master = None 
 		self.navigator = None 
 		self.arm = None 
+		self.socket_update = False
 		self.model_init()
 		self.publishers_arm = self.create_publisher(
 			String,
@@ -24,6 +25,11 @@ class QUERY(Node):
 			String,
 			'navigator_prompt',
 			10)
+		self.llm2socket = self.create_publisher(
+			String,
+			'llm2socket',
+			10)
+  
 		self.subscriber_navigator = self.create_subscription(
 			String,
 			'navigator_response',
@@ -39,6 +45,11 @@ class QUERY(Node):
 			'voice_prompt',
 			self.master_response_callback,
 			10)
+		self.socket2llm = self.create_subscription(
+			String,
+			'socket2llm',
+			self.socket_query_callback,
+			10)
 		pass
         
 	def navigator_response_callback(self, msg):
@@ -46,11 +57,25 @@ class QUERY(Node):
 
 	def master_response_callback(self, msg):
 		pass
+
+	def socket_query_callback(self, msg):
+		self.get_logger().info(f'{msg}')
+		if not self.socket_update:
+			self.socket_update = True
+			self.incoming_query = msg.data
+		pass
+
+	def response2socket(self, response):
+		msg = String()
+		msg.data = str(response)
+		self.llm2socket.publish(msg)
         
 	def model_init(self):
 		cfg = get_config('translator/configs/llm_config.yaml')['lmps']
-		fixed_vars = {'numpy':numpy, 'subprocess':subprocess, 'time': time} # for third libraries that LLM can access
-		variable_vars = {} # for first party libraries (can be other LLM) that a LLM can access
+  		# for third libraries that LLM can access
+		fixed_vars = {'numpy':numpy, 'subprocess':subprocess, 'time': time} 
+  		# for first party libraries (can be other LLM) that a LLM can access
+		variable_vars = {} 
 		# allow LMPs to access other LMPs 
 		# & low-level LLM setup
 		lmp_names = [name for name in cfg.keys() if not name in ['coder','previewer']] # cfg=lmps_config
@@ -78,15 +103,25 @@ class QUERY(Node):
 		#     print(lvars['result'])
 		return success
 	
+	def get_plan(self, input_prompt):
+		model_input = f'Query: {input_prompt}'
+		result, success = self.master(model_input) # result should be a list of actions (strings)
+		if isinstance(result, str):
+			results = result.splitlines()
+		return results
+
 	def run(self):
 		stopping_vocab_list = ['exit', 'stop', 'quit', 'terminate', 'end']
 		while rclpy.ok:
 			input_prompt = None
-			input_prompt = input("\n\033[1;33m>> Prompt: ")
-			print("\033[0m")
 			rclpy.spin_once(self, timeout_sec=0.1)
 
+			if not self.socket_update:
+				continue
+			self.socket_update = False
+   
 			# prompt handling
+			input_prompt = self.incoming_query
 			if not input_prompt:
 				continue
 			if input_prompt == 'exit':
@@ -94,15 +129,10 @@ class QUERY(Node):
 			if str(input_prompt).lower() in stopping_vocab_list:
 				# query.publish_cmd("stop")
 				continue
-			model_input = f'Query: {input_prompt}'
-
-			result, success = self.master(model_input) # result should be a list of actions (strings)
-			if isinstance(result, str):
-				result = result.splitlines()
-				print(result)
-    
+			
+			plans = self.get_plan(input_prompt)
 			# list of action handling
-			for action in result:
+			for action in plans:
 				print(f"Executing action: {action}")
 				if "navigator" in action:
 					self.navigator(action.split("(")[1].strip(")"))
@@ -110,10 +140,11 @@ class QUERY(Node):
 					self.arm(action.split("(")[1].strip(")"))
 				else:
 					print(f"Unknown action: {action}")
-			input()
 			# if success:
 			# 	while len(result) > 0:
 
+			self.response2socket(plans)
+			self.get_logger().info(f'All executed.')
 			continue
 		pass
 

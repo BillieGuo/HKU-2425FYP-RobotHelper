@@ -127,7 +127,7 @@ def safe_to_run(code, gvars=None, lvars=None):
         return False
     
 def coor_request():
-    
+    pass
 ##################################################################################
 
 # test
