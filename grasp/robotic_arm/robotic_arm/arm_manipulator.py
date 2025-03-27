@@ -13,7 +13,6 @@ from enum import Enum
 from tf_transformations import quaternion_from_matrix, quaternion_matrix, rotation_matrix, inverse_matrix, translation_matrix
 from ament_index_python.packages import get_package_share_directory
 import time
-import curses  # Add this import
 import tkinter as tk  # Add this import
 
 package_share_directory = get_package_share_directory("robotic_arm")
@@ -172,7 +171,7 @@ class ArmManipulator(InterbotixManipulatorXS):
         g2b_matrix = self.pose_to_matrix(g2b_tf)
         # g2b_matrix = self.arm.get_ee_pose()
         t2b_matrix = g2b_matrix @ c2g_matrix  @ t2c_matrix
-        t2b_matrix = self.calibrate(t2b_matrix)
+        # t2b_matrix = self.calibrate(t2b_matrix)
         grasp_pose_tf_msg = TransformStamped()
         grasp_pose_tf_msg.header.stamp = self.node.get_clock().now().to_msg()
         grasp_pose_tf_msg.header.frame_id = "vx300s/base_link"
@@ -191,6 +190,8 @@ class ArmManipulator(InterbotixManipulatorXS):
         # Consider adding a waypoint
         waypoint_matrix = t2b_matrix @ translation_matrix([-0.05, 0, 0])
         self.arm.set_ee_pose_matrix(waypoint_matrix, moving_time=3.0)
+        # waypoint_matrix = t2b_matrix @ translation_matrix([-0.03, 0, 0])
+        # self.arm.set_ee_pose_matrix(waypoint_matrix, moving_time=1.0)
         self.arm.set_ee_pose_matrix(t2b_matrix, moving_time=2.0)
         self.grasp(5.0)
         self.go_to_capture_pose()
@@ -205,7 +206,6 @@ class ArmManipulator(InterbotixManipulatorXS):
             matrix = matrix @ rotation_180_x
         return matrix
 
-        
     def pose_to_matrix(self, pose: Pose | Transform):
         if isinstance(pose, Transform):
             translation = np.array([pose.translation.x, pose.translation.y, pose.translation.z])
@@ -219,10 +219,10 @@ class ArmManipulator(InterbotixManipulatorXS):
         return matrix
 
     def go_to_capture_pose(self):
-        self.arm.set_joint_positions(self.CAPTURE_VIEW_JOINTS, moving_time=5.0)
+        self.arm.set_joint_positions(self.CAPTURE_VIEW_JOINTS, moving_time=5.0, blocking=False)
 
-    def go_to_sleep_pose(self, blocking=True):
-        self.arm.go_to_sleep_pose(blocking=blocking)
+    def go_to_sleep_pose(self):
+        self.arm.go_to_sleep_pose(blocking=False)
 
     def grasp(self, delay = 1.0):
         self.gripper.set_pressure(self.grasp_pressure)
@@ -242,7 +242,7 @@ class ArmManipulator(InterbotixManipulatorXS):
             rclpy.shutdown()
         elif self.key_pressed == 's':
             self.node.get_logger().info("Go to sleep pose")
-            self.go_to_sleep_pose(False)
+            self.go_to_sleep_pose()
         elif self.key_pressed == 'c':
             self.node.get_logger().info("Go to capture pose")
             self.go_to_capture_pose()
@@ -277,34 +277,7 @@ class ArmManipulator(InterbotixManipulatorXS):
 
     def handle_idle(self):
         # Idle logic
-        if self.curses_screen is None:
-            self.curses_screen = curses.initscr()  # Initialize curses
-            curses.noecho()  # Disable echoing of keys
-            curses.cbreak()  # React to keys instantly without Enter
-            self.curses_screen.keypad(True)
-
-        self.curses_screen.timeout(100)  # Non-blocking wait for key press
-        try:
-            key = self.curses_screen.getch()  # Get key press
-            if key != -1:  # If a key was pressed
-                self.key_pressed = chr(key) if key < 256 else None
-                self.node.get_logger().info(f"Key pressed: {self.key_pressed}")
-                if self.key_pressed == 'q':
-                    self.node.get_logger().info("Quitting...")
-                    self.go_to_sleep_pose()
-                    rclpy.shutdown()
-                elif self.key_pressed == 'r':
-                    self.node.get_logger().info("Force release")
-                    self.release()
-                elif self.key_pressed == 'g':
-                    self.node.get_logger().info("Force grasp")
-                    self.grasp()
-                # Reset the key_pressed after handling
-                self.key_pressed = None
-        except Exception as e:
-            self.node.get_logger().error(f"Error in handle_idle: {e}")
-        finally:
-            curses.endwin()  # Restore terminal to normal state when done
+        pass
 
     def handle_capture(self):
         # Capturing logic
