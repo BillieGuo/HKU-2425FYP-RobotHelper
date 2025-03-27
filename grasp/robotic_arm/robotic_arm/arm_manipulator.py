@@ -140,10 +140,12 @@ class ArmManipulator(InterbotixManipulatorXS):
         # Receive the prompt from the LLM translator
         self.node.get_logger().info(f"Received prompt: {msg.data}")
         self.text_prompt = msg.data
+        self.node.get_logger().info("Close the gripper for calibrate")
+        self.grasp()
         self.node.get_logger().info("Release the gripper")
         self.release()
         self.node.get_logger().info("Going to capture pose")
-        self.go_to_capture_pose()
+        self.go_to_capture_pose(blocking=True)
         # sleep for 1 sec
         time.sleep(1)
         self.prompt_pub.publish(msg)
@@ -171,7 +173,7 @@ class ArmManipulator(InterbotixManipulatorXS):
         g2b_matrix = self.pose_to_matrix(g2b_tf)
         # g2b_matrix = self.arm.get_ee_pose()
         t2b_matrix = g2b_matrix @ c2g_matrix  @ t2c_matrix
-        # t2b_matrix = self.calibrate(t2b_matrix)
+        t2b_matrix = self.calibrate(t2b_matrix)
         grasp_pose_tf_msg = TransformStamped()
         grasp_pose_tf_msg.header.stamp = self.node.get_clock().now().to_msg()
         grasp_pose_tf_msg.header.frame_id = "vx300s/base_link"
@@ -188,11 +190,11 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.node.get_logger().info("Broadcast the grasp pose")
         # Move the arm to the grasp pose
         # Consider adding a waypoint
-        waypoint_matrix = t2b_matrix @ translation_matrix([-0.05, 0, 0])
-        self.arm.set_ee_pose_matrix(waypoint_matrix, moving_time=3.0)
-        # waypoint_matrix = t2b_matrix @ translation_matrix([-0.03, 0, 0])
-        # self.arm.set_ee_pose_matrix(waypoint_matrix, moving_time=1.0)
-        self.arm.set_ee_pose_matrix(t2b_matrix, moving_time=2.0)
+        # waypoint_matrix = t2b_matrix @ translation_matrix([-0.05, 0, 0])
+        # self.arm.set_ee_pose_matrix(waypoint_matrix, moving_time=3.0)
+        waypoint_matrix = t2b_matrix @ translation_matrix([-0.03, 0, 0])
+        self.arm.set_ee_pose_matrix(waypoint_matrix, moving_time=5.0, blocking=True)
+        self.arm.set_ee_pose_matrix(t2b_matrix, moving_time=2.0, blocking=True)
         self.grasp(5.0)
         self.go_to_capture_pose()
         self.state=ArmState.IDLE
@@ -218,8 +220,8 @@ class ArmManipulator(InterbotixManipulatorXS):
         matrix[:3, 3] = translation
         return matrix
 
-    def go_to_capture_pose(self):
-        self.arm.set_joint_positions(self.CAPTURE_VIEW_JOINTS, moving_time=5.0, blocking=False)
+    def go_to_capture_pose(self, blocking=False):
+        self.arm.set_joint_positions(self.CAPTURE_VIEW_JOINTS, moving_time=5.0, blocking=blocking)
 
     def go_to_sleep_pose(self):
         self.arm.go_to_sleep_pose(blocking=False)
