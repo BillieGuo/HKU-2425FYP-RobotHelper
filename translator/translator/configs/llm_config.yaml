@@ -1,0 +1,49 @@
+lmp_config:
+    env:
+        # map_size: 100
+        # num_waypoints_per_plan: 10000  # set to a large number since we only do open loop for sim
+        # max_plan_iter: 1
+        # visualize: True
+    lmps:
+        # previewer: # preprocess info for coder
+        #     name: 'previewer'
+        #     heirarchy: 'preview'
+        #     # model: 'llama3-8B-instruct-official-fineTuned'
+        #     model: 'gpt-4'
+        #     sys_prompts: 'previewer_sys_prompt.txt'
+        #     user_prompts: 'previewer_user_prompt.txt'
+        #     adapter:  # leave empty if no adapter is used
+        #     max_new_tokens: 1024
+        #     load_in_4bit: False # no effect if not using local model (Llame sepecifc in this program)
+        
+        master: # high-level interpreter
+            name: 'master'
+            heirarchy: 'high'
+            model: 'gpt-4'
+            sys_prompts: 'master_sys_prompt.txt'
+            user_prompts: 'master_user_prompt.txt'
+            adapter:  # leave empty if no adapter is used
+            max_new_tokens: 1024
+            load_in_4bit: False # no effect if not using local model (Llame sepecifc in this program)
+
+
+        navigator: # low-level planner
+            name: 'navigator'
+            heirarchy: 'low'
+            model: 'gpt-4'
+            sys_prompts: 'navigator_sys_prompt.txt'
+            user_prompts: 'navigator_user_prompt.txt'
+            adapter:  # leave empty if no adapter is used
+            max_new_tokens: 512
+            load_in_4bit: True # no effect if not using local model (Llame sepecifc in this program)
+            
+            
+        arm: # low-level executor
+            name: 'arm'
+            heirarchy: 'low'
+            model: 'gpt-4'
+            sys_prompts: 'arm_sys_prompt.txt'
+            user_prompts: 'arm_user_prompt.txt'
+            adapter:  # leave empty if no adapter is used
+            max_new_tokens: 512
+            load_in_4bit: True # no effect if not using local model (Llame sepecifc in this program)

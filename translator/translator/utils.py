@@ -8,10 +8,15 @@ PI = math.pi
 
 ##################################################################################
 # system functions
-# Find file path from file name
-# fname: file name to search
-# return: file path if found, None otherwise
 def get_path(fname=None):
+    """Find file path from file name.
+
+    Args:
+        fname (str, optional): File name to search. Defaults to None.
+
+    Returns:
+        str/None: File path if found, None otherwise.
+    """
     if not fname:
         return None
     
@@ -26,33 +31,40 @@ def get_path(fname=None):
     return path
 
 
-# Load config file (.ymal file) from file path / name
-# config_path: path to config file
-# config_name: name of config file
-# return: config dictionary
-def get_config(config_name=None, config_path='./capllm/configs/config.yaml'):
+def get_config(config_name=None, config_path='./translator/configs/llm_config.yaml'):
+    """Load config file from file path / name.
+    
+    Args:
+        config_name (str, optional): Name of config file. Defaults to None.
+        config_path (str, optional): Path to config file. Defaults to './translator/configs/llm_config.yaml'.
+    
+    Returns:
+        dict: Config dictionary
+    """
     assert config_name or os.path.exists(config_path), f'config file does not exist ({config_name, config_path})'
     
     if config_name:
         config_path = get_path(config_name)
         
-    # print(config_path)
     with open(config_path, 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
     config = config['lmp_config']
     return config
 
-
-# Load prompt file from file name
-# prompt_fname: name of prompt file
-# prompt_fpath: path to prompt file
-# return: content of prompt file
 def load_prompt(prompt_fname:str, prompt_fpath=None)->str:
+    """Load prompt file from file name.
+
+    Args:
+        prompt_fname (str): Name of prompt file.
+        prompt_fpath (str, optional): Path to prompt file. Defaults to None.
+
+    Returns:
+        str: Content of prompt file.
+    """
     if not prompt_fpath:
         prompt_fpath = get_path(prompt_fname)
     assert prompt_fpath, f'prompt file does not exist ({prompt_fname})'
 
-    # print(prompt_fpath)
     with open(prompt_fpath, 'r') as f:
         contents = f.read().strip()
     return contents
@@ -61,16 +73,6 @@ def load_prompt(prompt_fname:str, prompt_fpath=None)->str:
 
 ##################################################################################
 # Math functions
-def angle_calculation(x1,y1,x2,y2):
-    dx = x2 - x1
-    dy = y2 - y1
-    angle = math.atan2(dy, dx)
-    if angle < -PI:
-        angle += 2*PI
-    if angle > PI:
-        angle -= 2*PI
-    return angle
-    
 def value_CLIP(value, min_value, max_value):
     return max(min(value, max_value), min_value)
 
@@ -80,6 +82,13 @@ def value_NORM(value, min_value, max_value):
     if value > max_value:
         value -= (max_value - min_value)
     return value
+
+def angle_calculation(x1,y1,x2,y2):
+    dx = x2 - x1
+    dy = y2 - y1
+    angle = math.atan2(dy, dx)
+    angle = value_NORM(angle, -PI, PI)
+    return angle
 
 # Convert quaternion to euler angles
 def to_euler(quaternion):
@@ -95,6 +104,31 @@ def to_euler(quaternion):
 
 ##################################################################################
 
+##################################################################################
+# LMP functions
+# execute module
+def safe_to_run(code, gvars=None, lvars=None):    
+    forbidden = ['__','exec(','eval']
+    for word in forbidden:
+        assert word not in code, f'forbidden word "{word}" in code'
+    if gvars is None:
+        gvars = {}
+    if lvars is None:
+        lvars = {}
+    try:
+        print("="*80)
+        print(code)
+        print(type(code))
+        print("="*80)
+        exec(code, gvars, lvars)
+        return True
+    except Exception as e:
+        print(f'Error codes: {e}')
+        return False
+    
+def coor_request():
+    pass
+##################################################################################
 
 # test
 if __name__ == '__main__':

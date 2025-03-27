@@ -5,7 +5,7 @@ import re
 import torch
 import openai
 from openai import AzureOpenAI
-from translator.utils import get_path, load_prompt
+from translator.utils import get_path, load_prompt, safe_to_run
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
@@ -17,16 +17,17 @@ class LMP:
         self.tokenizer = None
         self.fixed_vars = fixed_vars
         self.variable_vars = variable_vars
-        load_dotenv(dotenv_path=os.getcwd()+'/src/capllm/.env')
+        dotenv_path = get_path(".env")
+        load_dotenv(dotenv_path=dotenv_path)
         self.openai_key = os.getenv("OPENAI_API_KEY")
         self.openai_endpoint = os.getenv("OPENAI_API_ENDPOINT")
         self.openai_version = os.getenv("OPENAI_API_VERSION")
         self.hf_token = os.getenv("HF_TOKEN")
         self.load_model()
     
-    # get the configuration
+    # get the model & prompts configuration
     def config(self):
-        if 'gpt' in self.cfg['model'] :
+        if 'gpt' in self.cfg['model']:
             openai.api_type = "azure"
             openai.api_key = self.openai_key
             openai.azure_endpoint = self.openai_endpoint
@@ -76,7 +77,7 @@ class LMP:
     # format the code to be executed using subprocess & exec()
     def code_formatting(self, code):
         if self.cfg['heirarchy'] == 'low': # lower level LLM
-            code_prefix = f"import {', '.join(self.fixed_vars.keys())}"+ f"\ncommands = ['source ~/interbotix_ws/install/setup.bash', '''{code}''']\n"
+            code_prefix = f"import {', '.join(self.fixed_vars.keys())}" + f"\ncommands = ['''{code}''']\n"
         else:
             code_prefix = f"import {', '.join(self.fixed_vars.keys())}\n"
             return code_prefix + code
@@ -95,7 +96,7 @@ class LMP:
                     n=1)
                 result = chat_completion.choices[0].message.content
                 final = result
-            else:
+            else: # Llama model
                 self.model.eval()
                 with torch.no_grad():
                     result = self.tokenizer.decode(self.model.generate(inputs=input_ids, max_new_tokens=self.cfg['max_new_tokens'], pad_token_id=self.tokenizer.eos_token_id)[0], skip_special_tokens=True)
@@ -110,15 +111,16 @@ class LMP:
             # special case
             if not final:
                 return None, False
-            if self.cfg['heirarchy'] == 'preview':
+            if self.cfg['heirarchy'] == 'preview' or self.cfg['heirarchy'] == 'high':
                 return final, True
             
+            print(self.name)
             success = True
-            # # execute the code
-            # gvars = self.fixed_vars | self.variable_vars
-            # lvars = {}
-            # code = self.code_formatting(final)
-            # success = safe_to_run(code, gvars, lvars)
+            # execute the code
+            gvars = self.fixed_vars | self.variable_vars
+            lvars = {}
+            code = self.code_formatting(final)
+            success = safe_to_run(code, gvars, lvars)
             # if success: #and self.cfg['save_output']:
             #     print(lvars['result'])
         except KeyboardInterrupt:
@@ -174,24 +176,4 @@ class LMP:
     def __call__(self, prompt):
         input_text = self.format_chat_template(prompt)
         return self.generate(input_text)
-    
-# execute module
-def safe_to_run(code, gvars=None, lvars=None):    
-    forbidden = ['__','exec(','eval']
-    for word in forbidden:
-        assert word not in code, f'forbidden word "{word}" in code'
-    if gvars is None:
-        gvars = {}
-    if lvars is None:
-        lvars = {}
-    try:
-        print("="*80)
-        print(code)
-        print(type(code))
-        print("="*80)
-        exec(code, gvars, lvars)
-        return True
-    except Exception as e:
-        print(f'Error codes: {e}')
-        return False
     

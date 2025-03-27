@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'navigation'
+package_name = 'nav_control_hub'
 
 setup(
     name=package_name,
@@ -13,14 +13,15 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='fyp2',
+    maintainer='Bao Guo',
     maintainer_email='baoguo0816@gmail.com',
     description='TODO: Package description',
     license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'serial = navigation.serial_task:main',
+            'serial = serial_task.serial_node:main',
+            'control = main_control.control_node:main',
         ],
     },
 )

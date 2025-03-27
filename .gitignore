@@ -42,3 +42,10 @@ anygrasp_records/
 
 # Transformation
 transform_camera2gripper.yaml
+
+# LLM models, adapters, and prompts
+**/translator/translator/models/*
+**/translator/translator/adapters/*
+!**/translator/translator/models/.gitkeep
+!**/translator/translator/adapters/.gitkeep
+!**/translator/translator/prompts/.gitkeep
