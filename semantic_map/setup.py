@@ -21,6 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'image_socket_send = semantic_map.image_socket_send:main',
+            'listen_print_tf = semantic_map.listen_print_tf:main',
         ],
     },
 )

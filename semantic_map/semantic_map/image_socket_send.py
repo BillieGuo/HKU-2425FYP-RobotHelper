@@ -57,11 +57,29 @@ class SocketSender(Node):
             return False
         return True    
     
+    def listen_transform(self):
+        try:
+            # 从TF2缓冲区获取world到camera_frame的变换
+            transform: TransformStamped = self.tf_buffer.lookup_transform(
+                'world',
+                'camera_frame',
+                rclpy.time.Time()
+            )
+            self.camera_to_world = transform
+            # 打印变换信息
+            # self.get_logger().info(
+            #     f"Translation: ({transform.transform.translation.x}, {transform.transform.translation.y}, {transform.transform.translation.z})"
+            #     f"Rotation: ({transform.transform.rotation.x}, {transform.transform.rotation.y}, {transform.transform.rotation.z}, {transform.transform.rotation.w})"
+            # )
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+            # 处理异常情况
+            self.get_logger().warn(f"Could not transform world to camera_frame: {e}")
+
     def send_transform(self):
         if self.camera_to_world is not None:
-            translation = np.array([self.camera_to_world.transform.translation.x,
+            translation = [self.camera_to_world.transform.translation.x,
                                     self.camera_to_world.transform.translation.y,
-                                    self.camera_to_world.transform.translation.z])
+                                    self.camera_to_world.transform.translation.z]
             rotation = [self.camera_to_world.transform.rotation.x,
                         self.camera_to_world.transform.rotation.y,
                         self.camera_to_world.transform.rotation.z,
@@ -70,7 +88,14 @@ class SocketSender(Node):
             self.sock.sendall(struct.pack('<L', 1) + struct.pack('<3f', *translation) + struct.pack('<4f', *rotation))
         else:
             self.get_logger().info("Sending empty transform")
-            self.sock.sendall(struct.pack('<L', 0))
+            translation = [0,
+                        0,
+                        0]
+            rotation = [0,
+                        0,
+                        0,
+                        0]
+            self.sock.sendall(struct.pack('<L', 1) + struct.pack('<3f', *translation) + struct.pack('<4f', *rotation))
 
     def image_callback(self, msg):
         self.color_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
@@ -121,15 +146,15 @@ class SocketSender(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    socket_sender = SocketSender()
+    socket_sender = SocketSender(world_frame="world", camera_frame="camera_link", connect_to='fyp')
     try:
         socket_sender.wait_for_first_images()
         print("socket connected and first images geT")
         while rclpy.ok():
             rclpy.spin_once(socket_sender, timeout_sec=6.0)
-            # socket_sender.listen_tf()
-            # socket_sender.wait_handshake("trans")
-            # socket_sender.send_transform()
+            socket_sender.listen_transform()
+            socket_sender.wait_handshake("trans")
+            socket_sender.send_transform()
             socket_sender.wait_handshake("color")
             socket_sender.send_color_image()
             socket_sender.wait_handshake("depth")
