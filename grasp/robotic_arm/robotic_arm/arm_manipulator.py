@@ -13,6 +13,8 @@ from enum import Enum
 from tf_transformations import quaternion_from_matrix, quaternion_matrix, rotation_matrix, inverse_matrix, translation_matrix
 from ament_index_python.packages import get_package_share_directory
 import time
+import curses  # Add this import
+import tkinter as tk  # Add this import
 
 package_share_directory = get_package_share_directory("robotic_arm")
 
@@ -32,7 +34,9 @@ class ArmManipulator(InterbotixManipulatorXS):
         )
         self.node = self.core.get_node()
         # tf
-        self.tf_braodcaster = StaticTransformBroadcaster(self.node)
+        self.c2g_tf_broadcaster = StaticTransformBroadcaster(self.node)
+        self.camera_tf_broadcaster = StaticTransformBroadcaster(self.node)
+        self.grasp_pose_tf_broadcaster = StaticTransformBroadcaster(self.node)
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self.node)
         self.broadcast_c2g_tf()
@@ -45,11 +49,54 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.grasp_pressure = 0.5
         self.grasp()
         self.CAPTURE_VIEW_JOINTS = [0.0, -1.2, 0.7, 0, 1.2, 0]
-        # self.CAPTURE_VIEW_JOINTS = [0, -0.96, 1.16, 0, -0.3, 0]
         self.go_to_capture_pose()
         self.state = ArmState.IDLE
         self.node.get_logger().info("ArmManipulator initialized")
-    
+
+        # GUI for key listening
+        self.key_pressed = None
+        self.create_gui()
+
+    def create_gui(self):
+        # Create a tkinter window for key listening
+        self.root = tk.Tk()
+        self.root.title("Arm Manipulator Key Listener")
+        self.root.bind("<KeyPress>", self.on_key_press)
+
+        # Add a label for instructions
+        self.label = tk.Label(self.root, text="Press keys in this window to control the arm", font=("Arial", 14))
+        self.label.pack(pady=10)
+
+        # Add a frame for key descriptions
+        self.key_frame = tk.Frame(self.root)
+        self.key_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        # Add combined key and description labels
+        key_descriptions = [
+            ("q", "Quit and shutdown the node"),
+            ("s", "Go to sleep pose"),
+            ("c", "Go to capture pose"),
+            ("r", "Force release the gripper"),
+            ("g", "Force grasp with the gripper")
+        ]
+
+        for key, description in key_descriptions:
+            combined_label = tk.Label(
+                self.key_frame,
+                text=f"{key.upper()}: {description}",
+                font=("Arial", 12),
+                anchor="w"
+            )
+            combined_label.pack(fill=tk.X, padx=5, pady=2)
+
+        # Add a status label to show the last key pressed
+        self.status_label = tk.Label(self.root, text="Last key pressed: None", font=("Arial", 12), fg="blue")
+        self.status_label.pack(pady=10)
+
+        # Add a label to warn not to close the window
+        self.warn_label = tk.Label(self.root, text="Do not close this window or node will die.", font=("Arial", 10), fg="red")
+        self.warn_label.pack(pady=10)
+
     def broadcast_c2g_tf(self):
         tf_file_path =  os.path.join(package_share_directory, "config", "transform_camera2gripper.yaml")
         with open(tf_file_path, "r") as file:
@@ -63,7 +110,7 @@ class ArmManipulator(InterbotixManipulatorXS):
         c2g_tf.transform.translation.y = self.c2g_matrix[1][3]
         c2g_tf.transform.translation.z = self.c2g_matrix[2][3]
         c2g_tf.transform.rotation.x, c2g_tf.transform.rotation.y, c2g_tf.transform.rotation.z, c2g_tf.transform.rotation.w = quaternion_from_matrix(self.c2g_matrix)
-        self.tf_braodcaster.sendTransform(c2g_tf)
+        self.c2g_tf_broadcaster.sendTransform(c2g_tf)
 
     def broadcast_camera_tf(self):
         # the D435i_color_optical_frame is the same as camera_frame
@@ -74,29 +121,7 @@ class ArmManipulator(InterbotixManipulatorXS):
         )
         tf.header.stamp = self.node.get_clock().now().to_msg()
         tf.header.frame_id = "camera_frame"
-        self.tf_braodcaster.sendTransform(tf)
-        # tf: TransformStamped = self.tf_buffer.lookup_transform(
-        #     "D435i_link",
-        #     "D435i_color_optical_frame",
-        #     rclpy.time.Time()
-        # )
-        # print(tf)
-        # tf_matrix = self.pose_to_matrix(tf.transform)
-        # tf_matrix_inv = inverse_matrix(tf_matrix)
-        # tf_inv = TransformStamped()
-        # tf_inv.header.stamp = self.node.get_clock().now().to_msg()
-        # tf_inv.header.frame_id = "camera_frame"
-        # tf_inv.child_frame_id = "D435i_link"
-        # tf_inv.transform.translation.x = tf_matrix_inv[0][3]
-        # tf_inv.transform.translation.y = tf_matrix_inv[1][3]
-        # tf_inv.transform.translation.z = tf_matrix_inv[2][3]
-        # x,y,z,w = quaternion_from_matrix(tf_matrix_inv)
-        # tf_inv.transform.rotation.x = x
-        # tf_inv.transform.rotation.y = y
-        # tf_inv.transform.rotation.z = z
-        # tf_inv.transform.rotation.w = w
-        # self.tf_braodcaster.sendTransform(tf_inv)
-
+        self.camera_tf_broadcaster.sendTransform(tf)
 
     def create_publisher(self):
         # Publish for the grasp request node
@@ -160,7 +185,7 @@ class ArmManipulator(InterbotixManipulatorXS):
         grasp_pose_tf_msg.transform.rotation.y = y
         grasp_pose_tf_msg.transform.rotation.z = z
         grasp_pose_tf_msg.transform.rotation.w = w
-        self.tf_braodcaster.sendTransform(grasp_pose_tf_msg)
+        self.grasp_pose_tf_broadcaster.sendTransform(grasp_pose_tf_msg)
         self.node.get_logger().info("Broadcast the grasp pose")
         # Move the arm to the grasp pose
         # Consider adding a waypoint
@@ -196,6 +221,9 @@ class ArmManipulator(InterbotixManipulatorXS):
     def go_to_capture_pose(self):
         self.arm.set_joint_positions(self.CAPTURE_VIEW_JOINTS, moving_time=5.0)
 
+    def go_to_sleep_pose(self, blocking=True):
+        self.arm.go_to_sleep_pose(blocking=blocking)
+
     def grasp(self, delay = 1.0):
         self.gripper.set_pressure(self.grasp_pressure)
         self.gripper.grasp(delay=delay)
@@ -204,14 +232,38 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.gripper.set_pressure(0.0)
         self.gripper.release()
 
+    def on_key_press(self, event):
+        self.key_pressed = event.keysym  # Capture the key symbol
+        self.status_label.config(text=f"Last key pressed: {self.key_pressed}")  # Update the status label
+        if self.key_pressed == 'q':
+            self.node.get_logger().info("Quitting...")
+            self.go_to_sleep_pose()
+            self.root.destroy()  # Close the tkinter window
+            rclpy.shutdown()
+        elif self.key_pressed == 's':
+            self.node.get_logger().info("Go to sleep pose")
+            self.go_to_sleep_pose(False)
+        elif self.key_pressed == 'c':
+            self.node.get_logger().info("Go to capture pose")
+            self.go_to_capture_pose()
+        elif self.key_pressed == 'r':
+            self.node.get_logger().info("Force release")
+            self.release()
+        elif self.key_pressed == 'g':
+            self.node.get_logger().info("Force grasp")
+            self.grasp()
+        # Reset the key_pressed after handling
+        self.key_pressed = None
 
     def run(self):
         try:
             self.broadcast_camera_tf()
+        except Exception as e:
+            self.node.get_logger().error(f"Error in broadcast_camera_tf:\n{e}")
+
+        try:
             robot_startup()
-            while rclpy.ok():
-                self.handle_state()
-                
+            self.root.mainloop()  # Start the tkinter event loop
         except KeyboardInterrupt:
             robot_shutdown()
 
@@ -225,8 +277,34 @@ class ArmManipulator(InterbotixManipulatorXS):
 
     def handle_idle(self):
         # Idle logic
-        # Wait for a specific command to transition to the next state
-        pass
+        if self.curses_screen is None:
+            self.curses_screen = curses.initscr()  # Initialize curses
+            curses.noecho()  # Disable echoing of keys
+            curses.cbreak()  # React to keys instantly without Enter
+            self.curses_screen.keypad(True)
+
+        self.curses_screen.timeout(100)  # Non-blocking wait for key press
+        try:
+            key = self.curses_screen.getch()  # Get key press
+            if key != -1:  # If a key was pressed
+                self.key_pressed = chr(key) if key < 256 else None
+                self.node.get_logger().info(f"Key pressed: {self.key_pressed}")
+                if self.key_pressed == 'q':
+                    self.node.get_logger().info("Quitting...")
+                    self.go_to_sleep_pose()
+                    rclpy.shutdown()
+                elif self.key_pressed == 'r':
+                    self.node.get_logger().info("Force release")
+                    self.release()
+                elif self.key_pressed == 'g':
+                    self.node.get_logger().info("Force grasp")
+                    self.grasp()
+                # Reset the key_pressed after handling
+                self.key_pressed = None
+        except Exception as e:
+            self.node.get_logger().error(f"Error in handle_idle: {e}")
+        finally:
+            curses.endwin()  # Restore terminal to normal state when done
 
     def handle_capture(self):
         # Capturing logic
