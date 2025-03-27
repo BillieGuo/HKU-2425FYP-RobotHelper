@@ -5,7 +5,7 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
 
-from translator.utils import get_config
+from translator.utils import get_config, safe_to_run
 from translator.LMP import LMP
 
 
@@ -62,13 +62,22 @@ class QUERY(Node):
 
 		# high-level LLM setup
 		self.master = LMP("master", cfg['master'], fixed_vars, variable_vars)
-		self.navigator = LMP("navigator", cfg['navigator'])
-		self.arm = LMP("arm", cfg['arm'])
+		self.navigator = LMP("navigator", cfg['navigator'], fixed_vars)
+		self.arm = LMP("arm", cfg['arm'], fixed_vars)
 		# previewer = None # 
 
 		self.get_logger().info(f'Models loaded!')
 		return
 
+	def single_cmd_exec(self, llm_delegator, cmd):
+		gvars = llm_delegator.fixed_vars | self.variable_vars
+		lvars = {}
+		code = llm_delegator.code_formatting(cmd)
+		success = safe_to_run(code, gvars, lvars)
+		# if success: #and self.cfg['save_output']:
+		#     print(lvars['result'])
+		return success
+	
 	def run(self):
 		stopping_vocab_list = ['exit', 'stop', 'quit', 'terminate', 'end']
 		while rclpy.ok:
@@ -86,7 +95,25 @@ class QUERY(Node):
 				# query.publish_cmd("stop")
 				continue
 			model_input = f'Query: {input_prompt}'
+
 			result, success = self.master(model_input) # result should be a list of actions (strings)
+			if isinstance(result, str):
+				result = result.splitlines()
+				print(result)
+    
+			# list of action handling
+			for action in result:
+				print(f"Executing action: {action}")
+				if "navigator" in action:
+					self.navigator(action.split("(")[1].strip(")"))
+				elif "arm" in action:
+					self.arm(action.split("(")[1].strip(")"))
+				else:
+					print(f"Unknown action: {action}")
+			input()
+			# if success:
+			# 	while len(result) > 0:
+
 			continue
 		pass
 

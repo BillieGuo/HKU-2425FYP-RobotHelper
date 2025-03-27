@@ -104,6 +104,31 @@ def to_euler(quaternion):
 
 ##################################################################################
 
+##################################################################################
+# LMP functions
+# execute module
+def safe_to_run(code, gvars=None, lvars=None):    
+    forbidden = ['__','exec(','eval']
+    for word in forbidden:
+        assert word not in code, f'forbidden word "{word}" in code'
+    if gvars is None:
+        gvars = {}
+    if lvars is None:
+        lvars = {}
+    try:
+        print("="*80)
+        print(code)
+        print(type(code))
+        print("="*80)
+        exec(code, gvars, lvars)
+        return True
+    except Exception as e:
+        print(f'Error codes: {e}')
+        return False
+    
+def coor_request():
+    
+##################################################################################
 
 # test
 if __name__ == '__main__':
