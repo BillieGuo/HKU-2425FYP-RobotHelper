@@ -1,2 +1,21 @@
 import numpy as np
 {custom import}
+
+
+# Reasoning: Move to the workbench to access the soldering iron.  
+navigator("workbench")  
+# Reasoning: Return to the user’s location to deliver the tool.  
+navigator("user_station")  
+###
+
+
+# Reasoning: Position the robot at the centrifuge to retrieve the vial.  
+navigator("centrifuge")  
+# Reasoning: Move to the microscope for sample analysis.  
+navigator("microscope")  
+###
+
+
+# Reasoning: Dispose of the waste in the bin.
+navigator("bin")  
+###

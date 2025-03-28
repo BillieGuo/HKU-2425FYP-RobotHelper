@@ -1,0 +1,17 @@
+import numpy as np
+{custom import}
+
+
+# Reasoning: Grab the tool securely for safe transport.  
+arm("soldering_iron")  
+###
+
+ 
+# Reasoning: Secure the vial to avoid spills during transport.  
+arm("sample_vial")  
+###
+
+
+# Reasoning: Dispose of the waste in the bin.
+arm("waste")
+###

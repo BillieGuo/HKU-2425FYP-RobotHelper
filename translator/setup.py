@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'query = translator.query:main',
+            'master = translator.master:main',
             'socket = translator.socket_server:main',
         ],
     },

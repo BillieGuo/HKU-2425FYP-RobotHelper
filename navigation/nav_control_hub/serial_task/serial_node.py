@@ -15,8 +15,6 @@ class SerialNode(Node):
         self.ser = None
         self.last_time = 0
         self.variables = (0, 0, 0) # x, y, theta
-        self.tf_broadcaster1 = TransformBroadcaster(self)
-        self.odom_pub = self.create_publisher(Odometry, 'odom', 10)
         self.cmdvel_sub = self.create_subscription(Twist, '/cmd_vel', self.cmdvel_callback, 10)
 
     def read_from_serial(self):

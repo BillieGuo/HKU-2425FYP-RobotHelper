@@ -17,22 +17,22 @@ class QUERY(Node):
 		self.arm = None 
 		self.socket_update = False
 		self.model_init()
-		self.publishers_arm = self.create_publisher(
+		self.llm2arm = self.create_publisher(
 			String,
 			'grasp_prompt',
 			10)
-		self.publishers_navigator = self.create_publisher(
+		self.llm2navigator = self.create_publisher(
 			String,
-			'navigator_prompt',
+			'llm2navigator',
 			10)
 		self.llm2socket = self.create_publisher(
 			String,
 			'llm2socket',
 			10)
   
-		self.subscriber_navigator = self.create_subscription(
+		self.navigator2llm = self.create_subscription(
 			String,
-			'navigator_response',
+			'navigator2llm',
 			self.navigator_response_callback,
 			10)
 		self.subscriber_master_text = self.create_subscription(
@@ -89,7 +89,7 @@ class QUERY(Node):
 		self.master = LMP("master", cfg['master'], fixed_vars, variable_vars)
 		self.navigator = LMP("navigator", cfg['navigator'], fixed_vars)
 		self.arm = LMP("arm", cfg['arm'], fixed_vars)
-		# previewer = None # 
+		previewer = None # 
 
 		self.get_logger().info(f'Models loaded!')
 		return
@@ -130,14 +130,21 @@ class QUERY(Node):
 				# query.publish_cmd("stop")
 				continue
 			
-			plans = self.get_plan(input_prompt)
+			# plans = self.get_plan(input_prompt)
+			plans = [f'navigator({input_prompt})', f'arm({input_prompt})'] # hard-coded for now
 			# list of action handling
 			for action in plans:
 				print(f"Executing action: {action}")
 				if "navigator" in action:
-					self.navigator(action.split("(")[1].strip(")"))
+					# self.navigator(action.split("(")[1].strip(")")) # wait for llm to be implemented
+					tx  = String()
+					tx.data = action.split("(")[1].strip(")")
+					self.llm2navigator.publish(tx)
 				elif "arm" in action:
-					self.arm(action.split("(")[1].strip(")"))
+					# self.arm(action.split("(")[1].strip(")")) # wait for llm to be implemented
+					tx  = String()
+					tx.data = action.split("(")[1].strip(")")
+					self.llm2arm.publish(tx)
 				else:
 					print(f"Unknown action: {action}")
 			# if success:

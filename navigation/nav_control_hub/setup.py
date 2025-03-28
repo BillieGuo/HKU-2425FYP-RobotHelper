@@ -22,6 +22,7 @@ setup(
         'console_scripts': [
             'serial = serial_task.serial_node:main',
             'control = main_control.control_node:main',
+            'explore = main_control.yolo_explore:main',
         ],
     },
 )
