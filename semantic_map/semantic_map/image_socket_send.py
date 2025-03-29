@@ -7,11 +7,14 @@ import cv2
 import struct
 import time
 
-import tf2_ros
 import rclpy
 from geometry_msgs.msg import TransformStamped
 import tf_transformations
 import numpy as np
+
+from tf2_ros import TransformException
+from tf2_ros.buffer import Buffer
+from tf2_ros.transform_listener import TransformListener
 
 class SocketSender(Node):
     def __init__(self, camera_frame="camera_link", world_frame="map", connect_to='fyp'):
@@ -36,8 +39,8 @@ class SocketSender(Node):
 
         self.camera_frame = camera_frame
         self.world_frame = world_frame
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
         self.camera_to_world = None
     
     def wait_for_first_images(self):
@@ -50,30 +53,28 @@ class SocketSender(Node):
         self.sock.connect((self.connect_to, 8812))
 
     def listen_tf(self):
+        # Store frame names in variables that will be used to
+        # compute transformations
+        from_frame_rel = self.camera_frame
+        to_frame_rel = self.world_frame
+
         try:
-            self.camera_to_world = self.tf_buffer.lookup_transform(self.camera_frame, self.world_frame, rclpy.time.Time())
-        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
-            self.get_logger().info('Cannot find camera to world transform')
+            t = self.tf_buffer.lookup_transform(
+                to_frame_rel,
+                from_frame_rel,
+                rclpy.time.Time())
+        except TransformException as ex:
+            self.get_logger().info(
+                f'Could not transform {to_frame_rel} to {from_frame_rel}: {ex}')
             return False
-        return True    
-    
-    def listen_transform(self):
-        try:
-            # 从TF2缓冲区获取world到camera_frame的变换
-            transform: TransformStamped = self.tf_buffer.lookup_transform(
-                'world',
-                'camera_frame',
-                rclpy.time.Time()
-            )
-            self.camera_to_world = transform
-            # 打印变换信息
-            # self.get_logger().info(
-            #     f"Translation: ({transform.transform.translation.x}, {transform.transform.translation.y}, {transform.transform.translation.z})"
-            #     f"Rotation: ({transform.transform.rotation.x}, {transform.transform.rotation.y}, {transform.transform.rotation.z}, {transform.transform.rotation.w})"
-            # )
-        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
-            # 处理异常情况
-            self.get_logger().warn(f"Could not transform world to camera_frame: {e}")
+        
+        self.get_logger().info(
+            f'{to_frame_rel} to {from_frame_rel}: \n'
+            f'x: {t.transform.translation.x}\n'
+            f'y: {t.transform.translation.y}\n'
+        )
+        self.camera_to_world = t
+        return True
 
     def send_transform(self):
         if self.camera_to_world is not None:
@@ -146,13 +147,16 @@ class SocketSender(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    socket_sender = SocketSender(world_frame="world", camera_frame="camera_link", connect_to='fyp')
+    socket_sender = SocketSender(world_frame="map", camera_frame="D435i_color_optical_frame", connect_to='fyp')
     try:
         socket_sender.wait_for_first_images()
         print("socket connected and first images geT")
         while rclpy.ok():
-            rclpy.spin_once(socket_sender, timeout_sec=6.0)
-            socket_sender.listen_transform()
+            tf_get = False
+            while rclpy.ok() and tf_get == False:
+                rclpy.spin_once(socket_sender, timeout_sec=6.0)
+                tf_get = socket_sender.listen_tf()
+                
             socket_sender.wait_handshake("trans")
             socket_sender.send_transform()
             socket_sender.wait_handshake("color")
