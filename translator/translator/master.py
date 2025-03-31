@@ -56,6 +56,9 @@ class QUERY(Node):
 		pass
         
 	def navigator_response_callback(self, msg):
+		if msg.data:
+			self.get_logger().info(f'{msg.data}')
+			self.nagivation_action_done = msg.data
 		pass
 
 	def master_response_callback(self, msg):
@@ -134,7 +137,7 @@ class QUERY(Node):
 				continue
 			
 			# plans = self.get_plan(input_prompt)
-			plans = [f'navigator({input_prompt})',f'explore({input_prompt})' , f'arm({input_prompt})'] # hard-coded for now
+			plans = [f'navigator({input_prompt})', f'arm({input_prompt})'] # hard-coded for now
 			# list of action handling
 			for action in plans:
 				print(f"Executing action: {action}")
@@ -143,15 +146,16 @@ class QUERY(Node):
 					tx  = String()
 					tx.data = action.split("(")[1].strip(")")
 					self.llm2navigator.publish(tx)
+					while not self.nagivation_action_done:
+						continue
 				elif "arm" in action:
 					# self.arm(action.split("(")[1].strip(")")) # wait for llm to be implemented
 					tx  = String()
 					tx.data = action.split("(")[1].strip(")")
 					self.llm2arm.publish(tx)
+					# wait for arm process to be completed
 				else:
 					print(f"Unknown action: {action}")
-			# if success:
-			# 	while len(result) > 0:
 
 			self.response2socket(plans)
 			self.get_logger().info(f'All executed.')
