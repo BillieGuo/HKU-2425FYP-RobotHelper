@@ -25,11 +25,11 @@ class Yolo(Node):
             String, 
             'yolo_detections_str', 
             10)
-        self.yolo2llm = self.create_publisher(
+        self.yolo2navigator_pub = self.create_publisher(
             String,
-            'yolo2llm',
+            'yolo2navigator',
             10)
-        self.yolo2ser = self.create_publisher(
+        self.yolo2ser_pub = self.create_publisher(
             Twist,
             'yolo2ser',
             10)
@@ -41,10 +41,10 @@ class Yolo(Node):
             self.rgbd_callback,
             10)
         qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
-        self.llm_sub = self.create_subscription(
+        self.navigator2yolo_sub = self.create_subscription(
             String,
-            "llm2yolo",
-            self.llm_callback,
+            "navigator2yolo",
+            self.navigator_request_callback,
             qos_profile)
         
         # self.bridge = CvBridge()
@@ -60,7 +60,20 @@ class Yolo(Node):
         # self.model = YOLO(model="yoloe-s.pt")
         self.model.info()
         self.model.to("cuda")
-        self.distance_threshold = 0.5
+        self.distance_threshold = 500 # unit: mm (align with the depth image)
+        
+    def rgbd_callback(self, msg: RGBD):
+        self.get_logger().info("RGBD images received\n")
+        bgr_img = np.frombuffer(msg.rgb.data, dtype=np.uint8).reshape(msg.rgb.height, msg.rgb.width, -1)
+        self.rgb_image = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2RGB) 
+        self.depth_image = np.frombuffer(msg.depth.data, dtype=np.uint16).reshape(msg.depth.height, msg.depth.width, -1)
+        self.rgb_camera_info = msg.rgb_camera_info
+        self.depth_camera_info = msg.depth_camera_info
+
+    def navigator_request_callback(self, msg):
+        if msg.data:
+            self.prompt = msg.data
+        return
         
     def pub_chassis_control(self, cmd):
         vel = Twist()
@@ -79,7 +92,7 @@ class Yolo(Node):
 
         vel.linear.x = linear
         vel.angular.z = angular
-        self.yolo2ser.publish(vel)
+        self.yolo2ser_pub.publish(vel)
         return
         
     def run(self):
@@ -116,20 +129,6 @@ class Yolo(Node):
                 cv2.destroyAllWindows()
                 self.get_logger().info("Exiting...")
                 self.destroy_node()
-
-
-    def rgbd_callback(self, msg: RGBD):
-        self.get_logger().info("RGBD images received\n")
-        bgr_img = np.frombuffer(msg.rgb.data, dtype=np.uint8).reshape(msg.rgb.height, msg.rgb.width, -1)
-        self.rgb_image = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2RGB) 
-        self.depth_image = np.frombuffer(msg.depth.data, dtype=np.uint16).reshape(msg.depth.height, msg.depth.width, -1)
-        self.rgb_camera_info = msg.rgb_camera_info
-        self.depth_camera_info = msg.depth_camera_info
-
-    def llm_callback(self, msg):
-        if msg.data:
-            self.prompt = msg.data
-        return
 
     def send_explore_command(self):
         # Send a command to let the car rotate slowly (Use another program to control the car)
@@ -169,16 +168,16 @@ class Yolo(Node):
         if detected_objects:
             # Filter objects by target class if specified
             if target_class:
-                detected_objects = [obj for obj in detected_objects if obj["name"] == target_class]
+                detected_targets = [obj for obj in detected_objects if obj["name"] == target_class]
 
-            if detected_objects:
+            if detected_targets:
                 # Sort detected objects by depth (closest first)
-                ordered_detected_objects = sorted(detected_objects, key=lambda x: x["depth"])
-                nearest_object = ordered_detected_objects[0]
+                ordered_detected_targets = sorted(detected_objects, key=lambda x: x["depth"])
+                nearest_object = ordered_detected_targets[0]
                 annotated_frame = results[0].plot()
 
                 detect_result = {
-                    "detected_objects": ordered_detected_objects,
+                    "detected_targets": ordered_detected_targets,
                     "nearest_object": nearest_object,
                     "distance": nearest_object["depth"],
                     "annotated_frame": annotated_frame

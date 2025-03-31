@@ -4,18 +4,25 @@ from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import String
 import math
 from tf_transformations import quaternion_from_euler
-
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 
 class Navigator(Node):
     def __init__(self):
         super().__init__('goal_sender')
         self.odom = [0.0, 0.0, 0.0]
+        self.target_location = None
         self.prompt = None
         self.explore = None
+        
+        qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
         self.goal_publisher = self.create_publisher(PoseStamped, '/goal_pose', 10)
         self.pose_sub = self.create_subscription(PoseStamped, '/current_pose', self.odom_callback, 10)
-        self.llm2navigator_sub = self.create_subscription(String, 'llm2navigator', self.llm_request_callback, 10)
-        self.yolo2llm_sub = self.create_subscription(String, 'yolo2llm', self.yolo_request_callback, 10)
+        self.navigator2llm_pub = self.create_publisher(String, 'navigator2llm', qos_profile)
+        self.llm2navigator_sub = self.create_subscription(String, 'llm2navigator', self.llm_request_callback, qos_profile)
+        self.navigator2yolo_pub = self.create_publisher(String, 'navigator2yolo', qos_profile)
+        self.yolo2navigator_sub = self.create_subscription(String, 'yolo2navigator', self.yolo_response_callback, qos_profile)
+        self.navigator2socket_pub = self.create_publisher(String, 'navigator2socket', qos_profile)
+        self.socket2navigator_sub = self.create_subscription(String, 'socket2navigator', self.socket_response_callback, qos_profile)
         self.timer = self.create_timer(1.0, self.handel_request)
 
     def odom_callback(self, msg):
@@ -27,23 +34,60 @@ class Navigator(Node):
         if msg.data:
             self.prompt = msg.data
         
-    def yolo_request_callback(self, msg):
+    def yolo_response_callback(self, msg):
         if msg.data:
             self.explore = True
             
+    def requset_location(self, target):
+        self.get_logger().info(f"Requesting location of {self.target}")
+        msg = String()
+        msg.data = target
+        self.navigator2socket_pub.publish(msg)    
+        
+    def request_exploration(self, target):
+        self.get_logger().info(f"Requesting exploration of {self.target}")
+        msg = String()
+        msg.data = target
+        self.navigator2yolo_pub.publish(msg)
+        
+    def send_navigation_result(self, result):
+        self.get_logger().info(f"Sending navigation result to LLM: {result}")
+        msg = String()
+        msg.data = result
+        self.navigator2llm_pub.publish(msg)
+        
+    def socket_response_callback(self, msg):
+        if msg.data:
+            self.get_logger().info(f"Received from socket: {msg.data}")
+            self.target_location = map(float, msg.data.strip('[]').split(','))
         
     def handel_request(self):
         if not self.prompt:
             return
-        
+        # a prompt comes in with the name of the object to be searched and reached
+        # 1. pass the object to semantic map to get the location
+        self.requset_location(self.prompt)        
+        # wait for the location to be received
+        while not self.target_location:
+            continue
+        # 2. send the location to the navigator Nav2
+        self.send_goal_pos()
+        self.target_location = None
+        # 3. after reaching the location, conduct exploration
+        self.request_exploration(self.prompt)
+        while not self.explore:
+            continue
+        # 4. send the exploration result to the LLM
+        result = True
+        self.send_navigation_result(result)
         
         self.prompt = None
         self.explore = False
         pass
     
-    def send_goal_pos(self):
+    def send_goal_pos(self, goal):
         try:
-            x, y, theta = map(float, self.prompt.strip('[]').split(','))
+            x, y, theta = self.target_location
         except ValueError:
             self.get_logger().info(f'Wrong format! Please use [x,y,theta] instead.')
             return

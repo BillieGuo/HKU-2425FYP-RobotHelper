@@ -7,7 +7,7 @@ from std_msgs.msg import String
 
 class SocketServer(Node):
     def __init__(self, host='robot-helper', port=7000):
-        super().__init__("socket")
+        super().__init__("socket_LLMserver")
         self.llm_response = ""
         
         # socket
