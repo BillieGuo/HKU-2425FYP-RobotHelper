@@ -4,6 +4,7 @@ import subprocess
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 
 from translator.utils import get_config, safe_to_run
 from translator.LMP import LMP
@@ -17,24 +18,26 @@ class QUERY(Node):
 		self.arm = None 
 		self.socket_update = False
 		self.model_init()
+  
+		qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
 		self.llm2arm = self.create_publisher(
 			String,
 			'grasp_prompt',
-			10)
+			qos_profile)
 		self.llm2navigator = self.create_publisher(
 			String,
 			'llm2navigator',
-			10)
+			qos_profile)
 		self.llm2socket = self.create_publisher(
 			String,
 			'llm2socket',
-			10)
-  
+			qos_profile)
+
 		self.navigator2llm = self.create_subscription(
 			String,
 			'navigator2llm',
 			self.navigator_response_callback,
-			10)
+			qos_profile)
 		self.subscriber_master_text = self.create_subscription(
 			String,
 			'text_prompt',
@@ -131,7 +134,7 @@ class QUERY(Node):
 				continue
 			
 			# plans = self.get_plan(input_prompt)
-			plans = [f'navigator({input_prompt})', f'arm({input_prompt})'] # hard-coded for now
+			plans = [f'navigator({input_prompt})',f'explore({input_prompt})' , f'arm({input_prompt})'] # hard-coded for now
 			# list of action handling
 			for action in plans:
 				print(f"Executing action: {action}")

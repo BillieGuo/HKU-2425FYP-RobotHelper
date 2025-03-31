@@ -16,6 +16,7 @@ class SerialNode(Node):
         self.last_time = 0
         self.variables = (0, 0, 0) # x, y, theta
         self.cmdvel_sub = self.create_subscription(Twist, '/cmd_vel', self.cmdvel_callback, 10)
+        self.yolo2ser = self.create_subscription(Twist, 'yolo2ser', self.cmdvel_callback, 10)
 
     def read_from_serial(self):
         if self.ser.in_waiting > 0:

@@ -46,6 +46,8 @@ transform_camera2gripper.yaml
 # LLM models, adapters, and prompts
 **/translator/translator/models/*
 **/translator/translator/adapters/*
+**/navigation/nav_control_hub/models/*
 !**/translator/translator/models/.gitkeep
 !**/translator/translator/adapters/.gitkeep
 !**/translator/translator/prompts/.gitkeep
+!**/navigation/nav_control_hub/models/.gitkeep

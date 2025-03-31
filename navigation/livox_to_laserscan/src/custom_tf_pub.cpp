@@ -13,6 +13,7 @@ public:
         tf_broadcaster_1 = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
         tf_broadcaster_2 = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
         tf_broadcaster_3 = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
+        tf_broadcaster_4 = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
         publish_transforms();
         RCLCPP_INFO(this->get_logger(), "Transforms have been published.");
     }
@@ -58,14 +59,29 @@ private:
         t3.transform.rotation.z = 0.0;
         t3.transform.rotation.w = 1.0;
 
+        geometry_msgs::msg::TransformStamped t4;
+        t4.header.stamp = now;
+        t4.header.frame_id = "base_link";
+        t4.child_frame_id = "world";
+        t4.transform.translation.x = 0.0;
+        t4.transform.translation.y = 0.0;
+        t4.transform.translation.z = 0.7;
+        t4.transform.rotation.x = 0.0;
+        t4.transform.rotation.y = 0.0;
+        t4.transform.rotation.z = 0.0;
+        t4.transform.rotation.w = 1.0;
+
         tf_broadcaster_1->sendTransform(t1);
         tf_broadcaster_2->sendTransform(t2);
         tf_broadcaster_3->sendTransform(t3);
+        tf_broadcaster_4->sendTransform(t4);
+
     }
 
     std::shared_ptr<tf2_ros::StaticTransformBroadcaster> tf_broadcaster_1;
     std::shared_ptr<tf2_ros::StaticTransformBroadcaster> tf_broadcaster_2;
     std::shared_ptr<tf2_ros::StaticTransformBroadcaster> tf_broadcaster_3;
+    std::shared_ptr<tf2_ros::StaticTransformBroadcaster> tf_broadcaster_4;
 };
 
 int main(int argc, char * argv[])
