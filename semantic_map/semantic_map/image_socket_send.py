@@ -35,6 +35,8 @@ class SocketSender(Node):
         self.bridge = CvBridge()
         self.color_image = None
         self.depth_image = None
+        self.updating_color_image = None
+        self.updating_depth_image = None
         self.socket_setup()
 
         self.camera_frame = camera_frame
@@ -44,7 +46,7 @@ class SocketSender(Node):
         self.camera_to_world = None
     
     def wait_for_first_images(self):
-        while self.color_image is None or self.depth_image is None:
+        while self.updating_color_image is None or self.updating_depth_image is None:
             rclpy.spin_once(self)
             time.sleep(0.1)
 
@@ -99,10 +101,16 @@ class SocketSender(Node):
             self.sock.sendall(struct.pack('<L', 1) + struct.pack('<3f', *translation) + struct.pack('<4f', *rotation))
 
     def image_callback(self, msg):
-        self.color_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        self.updating_color_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
 
     def depth_callback(self, msg):
-        self.depth_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough').astype(np.uint16)
+        self.updating_depth_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough').astype(np.uint16)
+    
+    def image_fix(self):
+        self.color_image = self.updating_color_image
+    
+    def depth_fix(self):
+        self.depth_image = self.updating_depth_image
 
     def send_color_image(self):
         if self.color_image is not None:
@@ -154,16 +162,19 @@ def main(args=None):
         while rclpy.ok():
             tf_get = False
             while rclpy.ok() and tf_get == False:
-                rclpy.spin_once(socket_sender, timeout_sec=6.0)
+                rclpy.logging.get_logger("tf_get").info("Waiting for tf")
+                socket_sender.depth_fix()
+                socket_sender.image_fix()
+                rclpy.spin_once(socket_sender, timeout_sec=5.0)
                 tf_get = socket_sender.listen_tf()
                 
-            socket_sender.wait_handshake("trans")
-            socket_sender.send_transform()
-            socket_sender.wait_handshake("color")
-            socket_sender.send_color_image()
             socket_sender.wait_handshake("depth")
             socket_sender.send_depth_image()
-            time.sleep(0.01)
+            socket_sender.wait_handshake("color")
+            socket_sender.send_color_image()
+            socket_sender.wait_handshake("trans")
+            socket_sender.send_transform()
+
     except KeyboardInterrupt:
         pass
     finally:
