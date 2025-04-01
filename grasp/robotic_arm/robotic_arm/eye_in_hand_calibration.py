@@ -68,7 +68,7 @@ def main():
     pipeline, profile = initialize_pipeline()
     fx, fy, cx, cy = get_camera_intrinsics(profile)
     # AprilTag
-    detector, tag_size = initialize_detector(0.07)  # Set the tag size in meters
+    detector, tag_size = initialize_detector(0.079)  # Set the tag size in meters
     # Robot
     bot = robot(robot_model='vx300s', group_name='arm', gripper_name='gripper')
     bot.go_to_initial_pose()

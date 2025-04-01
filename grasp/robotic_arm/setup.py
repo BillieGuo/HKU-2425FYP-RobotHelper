@@ -28,7 +28,7 @@ setup(
             'eye_in_hand_calibration = robotic_arm.eye_in_hand_calibration:main',
             'eye_in_hand_validation = robotic_arm.eye_in_hand_validation:main',
             'arm_manipulator = robotic_arm.arm_manipulator:main',
-            'base_tf_pub = robotic_arm.tag_to_tf_publisher:main'
+            'tag_tf_pub = robotic_arm.tag_to_tf_publisher:main'
         ],
     },
 )
