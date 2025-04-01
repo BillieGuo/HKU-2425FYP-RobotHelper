@@ -29,6 +29,8 @@ class SocketServer(Node):
             self.llm_response_callback,
             10)
         
+        self.get_logger().info("Socket server (llm server) initialized.")
+        
     def llm_response_callback(self, msg):
         self.llm_response = msg.data
         pass 
@@ -61,7 +63,8 @@ class SocketServer(Node):
             
 def main():
     rclpy.init()
-    node = SocketServer()
+    # node = SocketServer(host='robot-helper', port=7000)
+    node = SocketServer(host='fyp2', port=7000)
     node.start()
     node.server.close()
     node.destroy_node()

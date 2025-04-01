@@ -23,6 +23,7 @@ setup(
             'serial = serial_task.serial_node:main',
             'control = main_control.control_node:main',
             'explore = main_control.yolo_explore:main',
+            'socket = main_control.socket_client:main',
         ],
     },
 )

@@ -16,7 +16,7 @@ class Navigator(Node):
         
         qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
         self.goal_publisher = self.create_publisher(PoseStamped, '/goal_pose', 10)
-        self.pose_sub = self.create_subscription(PoseStamped, '/current_pose', self.odom_callback, 10)
+        self.pose_sub = self.create_subscription(PoseStamped, '/Odometry', self.odom_callback, 10)
         self.navigator2llm_pub = self.create_publisher(String, 'navigator2llm', qos_profile)
         self.llm2navigator_sub = self.create_subscription(String, 'llm2navigator', self.llm_request_callback, qos_profile)
         self.navigator2yolo_pub = self.create_publisher(String, 'navigator2yolo', qos_profile)
@@ -24,6 +24,8 @@ class Navigator(Node):
         self.navigator2socket_pub = self.create_publisher(String, 'navigator2socket', qos_profile)
         self.socket2navigator_sub = self.create_subscription(String, 'socket2navigator', self.socket_response_callback, qos_profile)
         self.timer = self.create_timer(1.0, self.handel_request)
+
+        self.get_logger().info('Navigator node initialized.')
 
     def odom_callback(self, msg):
         self.get_logger().info(f'Current pose: {msg.pose.position.x:.2f}, {msg.pose.position.y:.2f}')
@@ -39,13 +41,13 @@ class Navigator(Node):
             self.explore = True
             
     def requset_location(self, target):
-        self.get_logger().info(f"Requesting location of {self.target}")
+        self.get_logger().info(f"Requesting location of {target}")
         msg = String()
         msg.data = target
         self.navigator2socket_pub.publish(msg)    
         
     def request_exploration(self, target):
-        self.get_logger().info(f"Requesting exploration of {self.target}")
+        self.get_logger().info(f"Requesting exploration of {target}")
         msg = String()
         msg.data = target
         self.navigator2yolo_pub.publish(msg)
@@ -53,7 +55,7 @@ class Navigator(Node):
     def send_navigation_result(self, result):
         self.get_logger().info(f"Sending navigation result to LLM: {result}")
         msg = String()
-        msg.data = result
+        msg.data = str(result)
         self.navigator2llm_pub.publish(msg)
         
     def socket_response_callback(self, msg):
@@ -61,6 +63,7 @@ class Navigator(Node):
             self.get_logger().info(f"Received from socket: {msg.data}")
             self.target_location = map(float, msg.data.strip('[]').split(','))
         
+    # main function
     def handel_request(self):
         if not self.prompt:
             return
@@ -68,15 +71,18 @@ class Navigator(Node):
         # 1. pass the object to semantic map to get the location
         self.requset_location(self.prompt)        
         # wait for the location to be received
-        while not self.target_location:
-            continue
+        # while not self.target_location:
+        #     continue
+        self.get_logger().info(f"Location received: {self.target_location}")
         # 2. send the location to the navigator Nav2
         self.send_goal_pos()
-        self.target_location = None
+        # self.target_location = None
+        self.get_logger().info(f"Goal sent: {self.target_location}")
         # 3. after reaching the location, conduct exploration
         self.request_exploration(self.prompt)
-        while not self.explore:
-            continue
+        # while not self.explore:
+        #     continue
+        self.get_logger().info(f"Exploration started.")
         # 4. send the exploration result to the LLM
         result = True
         self.send_navigation_result(result)
@@ -85,9 +91,10 @@ class Navigator(Node):
         self.explore = False
         pass
     
-    def send_goal_pos(self, goal):
+    def send_goal_pos(self):
         try:
-            x, y, theta = self.target_location
+            # x, y, theta = self.target_location
+            x, y, theta = [0.0, 0.0, 0.0]
         except ValueError:
             self.get_logger().info(f'Wrong format! Please use [x,y,theta] instead.')
             return
