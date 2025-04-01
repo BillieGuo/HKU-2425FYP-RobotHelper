@@ -63,8 +63,8 @@ class SocketServer(Node):
             
 def main():
     rclpy.init()
-    # node = SocketServer(host='robot-helper', port=7000)
-    node = SocketServer(host='fyp2', port=7000)
+    node = SocketServer(host='robot-helper', port=7000)
+    # node = SocketServer(host='fyp2', port=7000)
     node.start()
     node.server.close()
     node.destroy_node()

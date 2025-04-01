@@ -60,7 +60,7 @@ class Master(Node):
         
 	def navigator_response_callback(self, msg):
 		if msg.data:
-			self.get_logger().info(f'{msg.data}')
+			self.get_logger().info(f'navigator response: {msg.data}')
 			self.nagivation_action_done = bool(msg.data)
 		pass
 
@@ -149,8 +149,9 @@ class Master(Node):
 					tx  = String()
 					tx.data = action.split("(")[1].strip(")")
 					self.llm2navigator.publish(tx)
-					# while not self.nagivation_action_done:
-					# 	continue
+					while not self.nagivation_action_done:
+						rclpy.spin_once(self, timeout_sec=0.1)
+						continue
 				elif "arm" in action:
 					# self.arm(action.split("(")[1].strip(")")) # wait for llm to be implemented
 					tx  = String()

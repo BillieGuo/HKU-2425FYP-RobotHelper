@@ -1,9 +1,10 @@
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
+from nav_msgs.msg import Odometry
 from std_msgs.msg import String
 import math
-from tf_transformations import quaternion_from_euler
+from tf_transformations import quaternion_from_euler, euler_from_quaternion
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 
 class Navigator(Node):
@@ -16,29 +17,37 @@ class Navigator(Node):
         
         qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
         self.goal_publisher = self.create_publisher(PoseStamped, '/goal_pose', 10)
-        self.pose_sub = self.create_subscription(PoseStamped, '/Odometry', self.odom_callback, 10)
+        # self.pose_sub = self.create_subscription(Odometry, '/Odometry', self.odom_callback, 10)
         self.navigator2llm_pub = self.create_publisher(String, 'navigator2llm', qos_profile)
         self.llm2navigator_sub = self.create_subscription(String, 'llm2navigator', self.llm_request_callback, qos_profile)
         self.navigator2yolo_pub = self.create_publisher(String, 'navigator2yolo', qos_profile)
         self.yolo2navigator_sub = self.create_subscription(String, 'yolo2navigator', self.yolo_response_callback, qos_profile)
         self.navigator2socket_pub = self.create_publisher(String, 'navigator2socket', qos_profile)
         self.socket2navigator_sub = self.create_subscription(String, 'socket2navigator', self.socket_response_callback, qos_profile)
-        self.timer = self.create_timer(1.0, self.handel_request)
+        # self.timer = self.create_timer(1.0, self.handel_request)
 
         self.get_logger().info('Navigator node initialized.')
 
     def odom_callback(self, msg):
-        self.get_logger().info(f'Current pose: {msg.pose.position.x:.2f}, {msg.pose.position.y:.2f}')
-        self.get_logger().info(f'Current orientation: {msg.pose.orientation.w:.2f}')
-        self.odom = [msg.pose.position.x, msg.pose.position.y, msg.pose.orientation.w]
+        x = msg.pose.pose.position.x
+        y = msg.pose.pose.position.y
+        z = msg.pose.pose.position.z
+        qx = msg.pose.pose.orientation.x
+        qy = msg.pose.pose.orientation.y
+        qz = msg.pose.pose.orientation.z
+        qw = msg.pose.pose.orientation.w
+        # Convert quaternion to Euler angles
+        roll, pitch, yaw = euler_from_quaternion([qx, qy, qz, qw])
+        self.odom = [x, y, yaw] # x, y and theta
+        # self.get_logger().info(f'Current odom: {self.odom}')
         
     def llm_request_callback(self, msg):
         if msg.data:
             self.prompt = msg.data
         
     def yolo_response_callback(self, msg):
-        if msg.data:
-            self.explore = True
+        self.explore = True if msg.data == "Success" else False
+        self.get_logger().info(f"Exploration result received: {self.explore}")
             
     def requset_location(self, target):
         self.get_logger().info(f"Requesting location of {target}")
@@ -64,32 +73,37 @@ class Navigator(Node):
             self.target_location = map(float, msg.data.strip('[]').split(','))
         
     # main function
-    def handel_request(self):
-        if not self.prompt:
-            return
-        # a prompt comes in with the name of the object to be searched and reached
-        # 1. pass the object to semantic map to get the location
-        self.requset_location(self.prompt)        
-        # wait for the location to be received
-        # while not self.target_location:
-        #     continue
-        self.get_logger().info(f"Location received: {self.target_location}")
-        # 2. send the location to the navigator Nav2
-        self.send_goal_pos()
-        # self.target_location = None
-        self.get_logger().info(f"Goal sent: {self.target_location}")
-        # 3. after reaching the location, conduct exploration
-        self.request_exploration(self.prompt)
-        # while not self.explore:
-        #     continue
-        self.get_logger().info(f"Exploration started.")
-        # 4. send the exploration result to the LLM
-        result = True
-        self.send_navigation_result(result)
-        
-        self.prompt = None
-        self.explore = False
-        pass
+    def run(self):
+        while rclpy.ok():
+            rclpy.spin_once(self)
+            if not self.prompt:
+                return
+            # a prompt comes in with the name of the object to be searched and reached
+            # 0. get current pose
+            current_pose = self.get_pose()
+            self.get_logger().info(f"Current pose: {current_pose}")
+            # 1. pass the object to semantic map to get the location
+            self.requset_location(self.prompt)        
+            # wait for the location to be received
+            # while not self.target_location:
+            #     continue
+            self.get_logger().info(f"Location received: {self.target_location}")
+            # 2. send the location to the navigator Nav2
+            self.send_goal_pos()
+            # self.target_location = None
+            self.get_logger().info(f"Goal sent: {self.target_location}")
+            # 3. after reaching the location, conduct exploration
+            self.request_exploration(self.prompt)
+            self.get_logger().info(f"Exploration started.")
+            while not self.explore:
+                rclpy.spin_once(self)
+                self.get_logger().info(f"Exploration in progress.")
+                continue
+            # 4. send the exploration result to the LLM
+            self.send_navigation_result(True)
+            
+            self.prompt = None
+            self.explore = False
     
     def send_goal_pos(self):
         try:
@@ -120,7 +134,8 @@ class Navigator(Node):
 def main():
     rclpy.init()
     node = Navigator()
-    rclpy.spin(node)
+    node.run()
+    # rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
 
