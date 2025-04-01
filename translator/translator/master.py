@@ -10,13 +10,14 @@ from translator.utils import get_config, safe_to_run
 from translator.LMP import LMP
 
 
-class QUERY(Node):
+class Master(Node):
 	def __init__(self):
-		super().__init__("Query")
+		super().__init__("Master")
 		self.master = None 
 		self.navigator = None 
 		self.arm = None 
 		self.socket_update = False
+		self.nagivation_action_done = False
 		self.model_init()
   
 		qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
@@ -53,12 +54,14 @@ class QUERY(Node):
 			'socket2llm',
 			self.socket_query_callback,
 			10)
+  
+		self.get_logger().info("Master node initialized.")
 		pass
         
 	def navigator_response_callback(self, msg):
 		if msg.data:
 			self.get_logger().info(f'{msg.data}')
-			self.nagivation_action_done = msg.data
+			self.nagivation_action_done = bool(msg.data)
 		pass
 
 	def master_response_callback(self, msg):
@@ -146,8 +149,8 @@ class QUERY(Node):
 					tx  = String()
 					tx.data = action.split("(")[1].strip(")")
 					self.llm2navigator.publish(tx)
-					while not self.nagivation_action_done:
-						continue
+					# while not self.nagivation_action_done:
+					# 	continue
 				elif "arm" in action:
 					# self.arm(action.split("(")[1].strip(")")) # wait for llm to be implemented
 					tx  = String()
@@ -164,7 +167,7 @@ class QUERY(Node):
 
 def main():
     rclpy.init()
-    node = QUERY()
+    node = Master()
     node.run()
     node.destroy_node()
     rclpy.shutdown()

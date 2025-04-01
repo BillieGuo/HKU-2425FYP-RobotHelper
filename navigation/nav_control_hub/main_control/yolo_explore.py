@@ -62,6 +62,8 @@ class Yolo(Node):
         self.model.to("cuda")
         self.distance_threshold = 500 # unit: mm (align with the depth image)
         
+        self.get_logger().info("Yolo explore node initialized.")
+        
     def rgbd_callback(self, msg: RGBD):
         self.get_logger().info("RGBD images received\n")
         bgr_img = np.frombuffer(msg.rgb.data, dtype=np.uint8).reshape(msg.rgb.height, msg.rgb.width, -1)
@@ -73,6 +75,7 @@ class Yolo(Node):
     def navigator_request_callback(self, msg):
         if msg.data:
             self.prompt = msg.data
+        self.get_logger().info(f"Received prompt: {self.prompt}")
         return
         
     def pub_chassis_control(self, cmd):
@@ -104,6 +107,7 @@ class Yolo(Node):
             # 1. Received Prompt, start exploring
                 self.get_logger().info(f"Prompt {self.prompt} received, navigation done, start exploring the object.")
             # 2. Rotate Explore Movement (Send a command)
+                is_detected = False
                 while not is_detected:
                     self.send_explore_command()
                     # Use yolo to detect the target object
