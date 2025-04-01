@@ -2,7 +2,7 @@ import pyrealsense2 as rs
 from pupil_apriltags import Detector
 import cv2
 import numpy as np
-
+# The class is used to detect AprilTags using realsense camera
 class VisualModule:
     def __init__(self, tag_size=0.07):
         self.pipeline = None
