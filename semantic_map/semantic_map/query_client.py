@@ -29,9 +29,11 @@ class SemanticQueryClient(Node):
     
     def query_service_and_process(self, object_name, threshold=3.1415/6):
         points, similarities, service_names, labels = self.query_service(object_name, threshold)
-        if points is not None:
+        if len(points)!=0:
             self.query_point_processor.update_values(points, similarities, service_names, labels)
             return self.point_process_strategy()
+        else:
+            return None, None, None, None
 
 # 使用示例
 def main():
@@ -45,9 +47,14 @@ def main():
             similarity = float(input("Enter similarity of query: "))
             points, similarities, service_names, labels = query_client.query_service_and_process(object_name, similarity)
             if points is not None:
+                print()
                 print(f"Query result for {object_name}:")
                 print(f"Point: {points}, Similarity: {similarities}, Service Name: {service_names}, Label: {labels}")
-
+                print()
+            else:
+                print()
+                print(f"No result for {object_name}")
+                print()
     except KeyboardInterrupt:
         pass
     finally:
