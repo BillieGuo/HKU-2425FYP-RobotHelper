@@ -1,0 +1,1 @@
+config_file_path = "/home/robot-helper/fyp_ws/src/HKU-2425FYP-RobotHelper/semantic_map/config/"
