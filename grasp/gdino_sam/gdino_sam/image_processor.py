@@ -47,7 +47,7 @@ class ImageProcessor(Node):
         self.prompt = None
         self.rgb_camera_info = None
         self.depth_camera_info = None
-
+        self.ready_flag = False
         qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
         # qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
         self.rgbd_sub = self.create_subscription(RGBD, "/rgbd_remote", self.rgbd_callback, qos_profile)
@@ -63,15 +63,20 @@ class ImageProcessor(Node):
         self.depth_image = self.bridge.imgmsg_to_cv2(msg.depth, "16UC1")
         self.rgb_camera_info = msg.rgb_camera_info
         self.depth_camera_info = msg.depth_camera_info
+        if self.ready_flag is False:
+            if self.prompt is not None:
+                self.ready_flag = True
 
     def prompt_callback(self, msg):
         self.prompt = msg.data
         self.get_logger().info(f"Prompt '{self.prompt}' received")
+        if self.ready_flag is False:
+            if self.rgb_image is not None:
+                self.ready_flag = True
     
     def timer_callback(self):
-        if self.prompt is None:
-            return
-        if self.rgb_image is not None and self.depth_image is not None:
+        if self.ready_flag is True:
+            self.ready_flag = False
             self.get_logger().info("Start the inference\n")
             mask, absolute_boxes, logits, phrases = self.gdino_sam.infer(self.rgb_image, self.depth_image, self.prompt)
             if mask is None:
@@ -116,7 +121,7 @@ class ImageProcessor(Node):
         bbox = absolute_boxes[0]
         x1, y1, x2, y2 = map(int, bbox)
         label = phrases[0] if phrases else self.prompt
-        score = logits[0].item() if logits else 0.0
+        score = logits[0].item() if logits is not None else 0.0
         cv2.rectangle(blended_image, (x1, y1), (x2, y2), (255, 0, 0), 2)
         cv2.putText(blended_image, f"{label}: {score:.2f}", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
         return blended_image

@@ -45,7 +45,7 @@ class GDinoSAM:
         print(absolute_boxes.size)
         if absolute_boxes.size == 0:
             print("No bounding box predicted")
-            return None
+            return None, None, None, None
         print("Bounding box predicted")
 
         # Predict masks using SAM
