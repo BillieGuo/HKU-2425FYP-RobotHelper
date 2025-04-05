@@ -12,6 +12,22 @@ from PIL import Image as PILImage
 from cv_bridge import CvBridge
 import pyrealsense2 as rs
 
+import yaml
+from .params import *
+
+def read_config(file_name):
+    """Reads and parses a YAML configuration file."""
+    file_path = config_file_path+file_name+".yaml"
+    try:
+        with open(file_path, 'r') as file:
+            config = yaml.safe_load(file)  # Use safe_load to avoid executing arbitrary code
+            return config
+    except FileNotFoundError:
+        print(f"Error: The file {file_path} was not found.")
+        return None
+    except yaml.YAMLError as error:
+        print(f"Error parsing YAML file: {error}")
+        return None
 
 class SocketReceiver:
     '''

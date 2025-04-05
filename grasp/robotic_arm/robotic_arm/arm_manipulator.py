@@ -48,7 +48,9 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.grasp_pressure = 0.5
         self.grasp()
         self.CAPTURE_VIEW_JOINTS = [0.0, -1.2, 0.7, 0, 1.2, 0]
-        self.go_to_capture_pose()
+        self.EXPLORE_VIEW_JOINTS = [0.0, -1.0, 0.15, 0.0, 1.35, 0.0]
+        # self.go_to_capture_pose()
+        self.go_to_explore_pose(blocking=True)
         self.state = ArmState.IDLE
         self.node.get_logger().info("ArmManipulator initialized")
 
@@ -76,7 +78,9 @@ class ArmManipulator(InterbotixManipulatorXS):
             ("s", "Go to sleep pose"),
             ("c", "Go to capture pose"),
             ("r", "Force release the gripper"),
-            ("g", "Force grasp with the gripper")
+            ("g", "Force grasp with the gripper"),
+            ("e", "Go to explore pose"),
+            
         ]
 
         for key, description in key_descriptions:
@@ -196,7 +200,8 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.arm.set_ee_pose_matrix(waypoint_matrix, moving_time=5.0, blocking=True)
         self.arm.set_ee_pose_matrix(t2b_matrix, moving_time=2.0, blocking=True)
         self.grasp(5.0)
-        self.go_to_capture_pose()
+        # self.go_to_capture_pose()
+        self.go_to_explore_pose()
         self.state=ArmState.IDLE
 
     def calibrate(self, matrix):
@@ -223,6 +228,9 @@ class ArmManipulator(InterbotixManipulatorXS):
     def go_to_capture_pose(self, blocking=False):
         self.arm.set_joint_positions(self.CAPTURE_VIEW_JOINTS, moving_time=5.0, blocking=blocking)
 
+    def go_to_explore_pose(self, blocking=False):
+        self.arm.set_joint_positions(self.EXPLORE_VIEW_JOINTS, moving_time=5.0, blocking=blocking)
+
     def go_to_sleep_pose(self):
         self.arm.go_to_sleep_pose(blocking=False)
 
@@ -248,6 +256,9 @@ class ArmManipulator(InterbotixManipulatorXS):
         elif self.key_pressed == 'c':
             self.node.get_logger().info("Go to capture pose")
             self.go_to_capture_pose()
+        elif self.key_pressed == 'e':
+            self.node.get_logger().info("Go to explore pose")
+            self.go_to_explore_pose()
         elif self.key_pressed == 'r':
             self.node.get_logger().info("Force release")
             self.release()

@@ -1,0 +1,1 @@
+ros2 service call /semantic_query custom_msgs/srv/SemanticQuery "{object_name: 'keyboard', similarity_threshold_rad: 0.5}"

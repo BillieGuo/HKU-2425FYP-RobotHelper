@@ -22,6 +22,8 @@ setup(
         'console_scripts': [
             'image_socket_send = semantic_map.image_socket_send:main',
             'listen_print_tf = semantic_map.listen_print_tf:main',
+            'query_semantic_map = semantic_map.query_semantic_map:main',
+            'query_client = semantic_map.query_client:main',
         ],
     },
 )
