@@ -19,7 +19,7 @@ from std_msgs.msg import Header
 
 package_share_directory = get_package_share_directory("anygrasp")
 from gsnet import AnyGrasp
-from graspnetAPI import GraspGroup
+from graspnetAPI import GraspGroup, Grasp
 
 
 class Config:
@@ -66,21 +66,21 @@ class AnyGraspNode(Node):
         self.get_logger().info("The anygrasp_node initialized successfully, listening to /cropped_rgbd\n")
 
     def rgbd_callback(self, msg):
-        rgb_image = self.bridge.imgmsg_to_cv2(msg.rgb, "bgr8")
+        rgb_image = self.bridge.imgmsg_to_cv2(msg.rgb, "rgb8")
         depth_image = self.bridge.imgmsg_to_cv2(msg.depth, "16UC1")
 
         rgb_camera_info = msg.rgb_camera_info
         # depth_camera_info = msg.depth_camera_info
 
         self.get_logger().info("Cropped rgbd received, generating grasp poses...")
-        grasp_response, cloud = self.generate_grasp_poses(rgb_image, depth_image, rgb_camera_info)
+        grasp_response, gg, cloud = self.generate_grasp_poses(rgb_image, depth_image, rgb_camera_info)
         num = grasp_response.num_grasp_poses
         if num != 0:
             self.get_logger().info(f"Generated {grasp_response.num_grasp_poses} grasp poses. Publishing results...")
             self.grasp_pub.publish(grasp_response)
             if self.cfgs.save_record:
                 self.get_logger().info("Saving the record...")
-                self.save_record(grasp_response, rgb_image, depth_image, cloud)
+                self.save_record(grasp_response, rgb_image, depth_image, gg, cloud)
             if self.cfgs.debug:
                 self.publish_pcd(cloud, grasp_response)
             self.get_logger().info("Keep listening to /cropped_rgbd\n")
@@ -94,7 +94,7 @@ class AnyGraspNode(Node):
         # print("Colors shape:", colors.shape, "Colors type:", colors.dtype)
 
         # generate grasp poses and cloud (open3d.geometry.PointCloud)
-        gg, cloud = self.anygrasp.get_grasp(points, colors, lims=lims, apply_object_mask=True, dense_grasp=False, collision_detection=True)
+        gg, cloud = self.anygrasp.get_grasp(points, colors, lims=lims, apply_object_mask=True, dense_grasp=True, collision_detection=True)
 
         if gg is None:
             self.get_logger().info("No Grasp detected after collision detection!")
@@ -122,7 +122,7 @@ class AnyGraspNode(Node):
             scores.append(float(grasp.score))
         grasp_response = GraspResponse(num_grasp_poses=len(grasp_poses), grasp_poses=grasp_poses, scores=scores)
         
-        return grasp_response, cloud
+        return grasp_response, gg_pick, cloud
 
     def prepare_data(self, rgb_image, depth_image, camera_info):
                 # Convert images to numpy arrays
@@ -155,7 +155,7 @@ class AnyGraspNode(Node):
 
         return points, colors, lims
 
-    def save_record(self, grasp_response, rgb_image, depth_image, cloud):
+    def save_record(self, grasp_response, rgb_image, depth_image, gg: GraspGroup, cloud: o3d.geometry.PointCloud):
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         record_dir = os.path.join(self.records, f"record_{timestamp}")
         os.makedirs(record_dir, exist_ok=True)
@@ -183,6 +183,34 @@ class AnyGraspNode(Node):
         with open(os.path.join(record_dir, "grasp_response.yaml"), "w") as f:
             yaml.dump(grasp_response_dict, f)
         self.get_logger().info(f"Grasp response saved to {os.path.join(record_dir, 'grasp_response.yaml')}")
+
+        # Save the grasp visualization in pointcloud
+        # Geometry are upside down, need to transform
+        trans_mat = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
+        cloud.transform(trans_mat)
+        grippers = gg.to_open3d_geometry_list()
+        for gripper in grippers:
+            gripper.transform(trans_mat)
+
+        # Create an off-screen renderer
+        width, height = 640, 480
+        renderer = o3d.visualization.rendering.OffscreenRenderer(width, height)
+        # Add geometries to the renderer
+        renderer.scene.add_geometry("cloud", cloud, o3d.visualization.rendering.MaterialRecord())
+        # Visualize the pointcloud without grasp pose
+        pointcloud_image = renderer.render_to_image()
+        o3d.io.write_image(os.path.join(record_dir,"object_pointcloud.png"), pointcloud_image)
+        # Visualize the pointcloud with grasp pose
+        for i, gripper in enumerate(grippers):
+            if i == 0:
+                gripper.paint_uniform_color([1, 0, 0])
+                renderer.scene.add_geometry("best_gripper", gripper, o3d.visualization.rendering.MaterialRecord())
+            else:
+                gripper.paint_uniform_color([0, 1, 0])
+                renderer.scene.add_geometry(f"gripper_{i}", gripper, o3d.visualization.rendering.MaterialRecord())
+        grasp_image = renderer.render_to_image()
+        o3d.io.write_image(os.path.join(record_dir,"grasp_pointcloud.png"), grasp_image)
+        self.get_logger().info("Pointcloud visualization image saved")
 
     def publish_pcd(self, cloud, grasp_response: GraspResponse):
         # Publish the point cloud in rviz, frame_id is "static_grasp_camera_frame"
