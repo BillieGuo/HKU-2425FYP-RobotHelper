@@ -73,18 +73,19 @@ class ImageProcessor(Node):
             return
         if self.rgb_image is not None and self.depth_image is not None:
             self.get_logger().info("Start the inference\n")
-            mask = self.gdino_sam.infer(self.rgb_image, self.depth_image, self.prompt)
+            mask, absolute_boxes, logits, phrases = self.gdino_sam.infer(self.rgb_image, self.depth_image, self.prompt)
             if mask is None:
                 self.get_logger().info("gdino_sam failed\n")
                 self.prompt = None
                 self.rgb_image = None
                 self.depth_image = None
                 return
+            annotated_image = self.annotate_image(self.rgb_image, mask, absolute_boxes, logits, phrases)
             cropped_color, cropped_depth = self.crop_image(self.rgb_image, self.depth_image, mask)
             self.publish_cropped_images(cropped_color, cropped_depth)
-            # self.take_record(self.rgb_image, self.depth_image, cropped_color, cropped_depth, mask)
-            self.prompt = None
+            self.take_record(self.rgb_image, self.depth_image, cropped_color, cropped_depth, mask, annotated_image)
             self.get_logger().info("Image processing done\n")
+            self.prompt = None
 
     def crop_image(self, color_image, depth_image, mask):
         masked_color = np.zeros_like(color_image)
@@ -103,7 +104,24 @@ class ImageProcessor(Node):
         self.debug_color_pub.publish(rgbd_msg.rgb)
         self.get_logger().info("Cropped RGBD message published\n")
 
-    def take_record(self, rgb_image, depth_image, cropped_color, cropped_depth, mask):
+    def annotate_image(self, image, mask, absolute_boxes, logits, phrases):
+        # Visualize the predicted box and mask on the color image
+        color_mask = np.zeros_like(image, dtype=np.uint8)
+        color = (0, 0, 255)
+        color_mask[mask] = color
+        # Blend original image with color mask
+        alpha = 0.5
+        blended_image = cv2.addWeighted(image, 1.0, color_mask, alpha, 0)
+        # Draw the bounding box and label on the blended image
+        bbox = absolute_boxes[0]
+        x1, y1, x2, y2 = map(int, bbox)
+        label = phrases[0] if phrases else self.prompt
+        score = logits[0].item() if logits else 0.0
+        cv2.rectangle(blended_image, (x1, y1), (x2, y2), (255, 0, 0), 2)
+        cv2.putText(blended_image, f"{label}: {score:.2f}", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+        return blended_image
+
+    def take_record(self, rgb_image, depth_image, cropped_color, cropped_depth, mask, annotated_image):
         # Save these information to the record_dir/record_{timestamp}/ separately
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         record_dir = os.path.join(self.records, f"record_{timestamp}")
@@ -112,6 +130,7 @@ class ImageProcessor(Node):
         # Save the images
         cv2.imwrite(os.path.join(record_dir, "rgb_image.png"), rgb_image)
         cv2.imwrite(os.path.join(record_dir, "depth_image.png"), depth_image)
+        cv2.imwrite(os.path.join(record_dir, "annotated_image.png"), annotated_image)
         cv2.imwrite(os.path.join(record_dir, "cropped_color.png"), cropped_color)
         cv2.imwrite(os.path.join(record_dir, "cropped_depth.png"), cropped_depth)
         cv2.imwrite(os.path.join(record_dir, "mask.png"), mask.astype(np.uint8) * 255)

@@ -60,7 +60,7 @@ class GDinoSAM:
         # cv2.imwrite(self.mask_storage_path, mask.astype(np.uint8) * 255)
         # print("Mask saved")
 
-        return mask
+        return mask, absolute_boxes, logits, phrases
 
     def convert_boxes(self, boxes, image_width, image_height):
         absolute_boxes = []
