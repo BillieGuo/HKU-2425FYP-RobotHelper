@@ -47,9 +47,12 @@ class ArmManipulator(InterbotixManipulatorXS):
         # arm
         self.grasp_pressure = 0.5
         self.grasp()
-        self.CAPTURE_VIEW_JOINTS = [0.0, -1.2, 0.7, 0, 1.2, 0]
-        self.EXPLORE_VIEW_JOINTS = [0.0, -1.0, 0.15, 0.0, 1.35, 0.0]
-        # self.go_to_capture_pose()
+        self.EXPLORE_VIEW_JOINTS = [0.0, -1.8, 1.36, 0.0, 0.7, 0.0]
+        # self.CAPTURE_VIEW_JOINTS = [0.0, -1.2, 0.7, 0, 1.2, 0]
+        # self.CAPTURE_VIEW_JOINTS = [0.0, -0.13, 1, 0, -0.36, 0] # Move forward along the camera from the explore pose
+        self.CAPTURE_VIEW_JOINTS = [0.0, -0.26, 0.46, 0, 0.88, 0]
+        self.is_torque_on = True
+        self.torque_on()
         self.go_to_explore_pose(blocking=True)
         self.state = ArmState.IDLE
         self.node.get_logger().info("ArmManipulator initialized")
@@ -75,12 +78,12 @@ class ArmManipulator(InterbotixManipulatorXS):
         # Add combined key and description labels
         key_descriptions = [
             ("q", "Quit and shutdown the node"),
-            ("s", "Go to sleep pose"),
+            ("e", "Go to explore pose"),
             ("c", "Go to capture pose"),
+            ("s", "Go to sleep pose"),
             ("r", "Force release the gripper"),
             ("g", "Force grasp with the gripper"),
-            ("e", "Go to explore pose"),
-            
+            ("t", "Torque toggle"),
         ]
 
         for key, description in key_descriptions:
@@ -149,9 +152,8 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.node.get_logger().info("Release the gripper")
         self.release()
         self.node.get_logger().info("Going to capture pose")
-        self.go_to_capture_pose(blocking=True)
-        # sleep for 1 sec
-        time.sleep(1)
+        self.go_to_capture_pose()
+        time.sleep(5)
         self.prompt_pub.publish(msg)
         self.node.get_logger().info("Publish the prompt, waiting for the grasp pose")
 
@@ -197,9 +199,9 @@ class ArmManipulator(InterbotixManipulatorXS):
         # waypoint_matrix = t2b_matrix @ translation_matrix([-0.05, 0, 0])
         # self.arm.set_ee_pose_matrix(waypoint_matrix, moving_time=3.0)
         waypoint_matrix = t2b_matrix @ translation_matrix([-0.03, 0, 0])
-        self.arm.set_ee_pose_matrix(waypoint_matrix, moving_time=5.0, blocking=True)
-        self.arm.set_ee_pose_matrix(t2b_matrix, moving_time=2.0, blocking=True)
-        self.grasp(5.0)
+        self.arm.set_ee_pose_matrix(waypoint_matrix, moving_time=5.0, blocking=True) #TODO: Add guess
+        self.arm.set_ee_pose_matrix(t2b_matrix, moving_time=2.0, blocking=False)
+        self.grasp(4.0)
         # self.go_to_capture_pose()
         self.go_to_explore_pose()
         self.state=ArmState.IDLE
@@ -234,13 +236,27 @@ class ArmManipulator(InterbotixManipulatorXS):
     def go_to_sleep_pose(self):
         self.arm.go_to_sleep_pose(blocking=False)
 
-    def grasp(self, delay = 1.0):
+    def grasp(self, delay = 0.0):
         self.gripper.set_pressure(self.grasp_pressure)
         self.gripper.grasp(delay=delay)
 
     def release(self):
         self.gripper.set_pressure(0.0)
-        self.gripper.release()
+        self.gripper.release(delay=0.0)
+
+    def torque_off(self):
+        self.core.robot_torque_enable(cmd_type='group', name='arm', enable=False)
+        self.is_torque_on = False
+
+    def torque_on(self):
+        self.core.robot_torque_enable(cmd_type='group', name='arm', enable=True)
+        self.is_torque_on = True
+    
+    def torque_toggle(self):
+        if self.is_torque_on:
+            self.torque_off()
+        else:
+            self.torque_on()
 
     def on_key_press(self, event):
         self.key_pressed = event.keysym  # Capture the key symbol
@@ -265,6 +281,9 @@ class ArmManipulator(InterbotixManipulatorXS):
         elif self.key_pressed == 'g':
             self.node.get_logger().info("Force grasp")
             self.grasp()
+        elif self.key_pressed == 't':
+            self.node.get_logger().info("Torque toggle")
+            self.torque_toggle()
         # Reset the key_pressed after handling
         self.key_pressed = None
 
