@@ -161,6 +161,7 @@ class AnyGraspNode(Node):
         os.makedirs(record_dir, exist_ok=True)
 
         # Save the images
+        cv2.cvtcolor(rgb_image, cv2.COLOR_RGB2BGR, rgb_image)
         cv2.imwrite(os.path.join(record_dir, "rgb_image.png"), rgb_image)
         cv2.imwrite(os.path.join(record_dir, "depth_image.png"), depth_image)
 
