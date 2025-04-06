@@ -1,15 +1,20 @@
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Point
 from nav_msgs.msg import Odometry
 from std_msgs.msg import String
-import math
 from tf_transformations import quaternion_from_euler, euler_from_quaternion
 from rclpy.qos import QoSProfile, ReliabilityPolicy
+from nav2_simple_commander.robot_navigator import BasicNavigator
+
+import math
+from custom_msgs.srv import SemanticQuery
+
 
 class Navigator(Node):
     def __init__(self):
-        super().__init__('goal_sender')
+        super().__init__('Control')
+        self.nav2navigator = BasicNavigator()
         self.odom = [0.0, 0.0, 0.0]
         self.target_location = None
         self.prompt = None
@@ -17,7 +22,7 @@ class Navigator(Node):
         
         qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
         self.goal_publisher = self.create_publisher(PoseStamped, '/goal_pose', 10)
-        # self.pose_sub = self.create_subscription(Odometry, '/Odometry', self.odom_callback, 10)
+        self.pose_sub = self.create_subscription(Odometry, '/Odometry', self.odom_callback, 10)
         self.navigator2llm_pub = self.create_publisher(String, 'navigator2llm', qos_profile)
         self.llm2navigator_sub = self.create_subscription(String, 'llm2navigator', self.llm_request_callback, qos_profile)
         self.navigator2yolo_pub = self.create_publisher(String, 'navigator2yolo', qos_profile)
@@ -26,7 +31,21 @@ class Navigator(Node):
         self.socket2navigator_sub = self.create_subscription(String, 'socket2navigator', self.socket_response_callback, qos_profile)
         # self.timer = self.create_timer(1.0, self.handel_request)
 
+        self.sem_map_client = self.create_client(SemanticQuery, 'semantic_query')
+        
         self.get_logger().info('Navigator node initialized.')
+    
+    def query_service(self, object_name, threshold=3.1415/6):
+        req = SemanticQuery.Request()
+        req.object_name = object_name
+        req.similarity_threshold_rad = threshold
+        future = self.sem_map_client.call_async(req)
+        rclpy.spin_until_future_complete(self, future)
+        try:
+            return future.result().points, future.result().similarities, future.result().corresponding_semantic_service, future.result().labels
+        except Exception as e:
+            self.get_logger().error(f'Service call failed: {str(e)}')
+            return None, None, None, None
 
     def odom_callback(self, msg):
         x = msg.pose.pose.position.x
@@ -51,9 +70,8 @@ class Navigator(Node):
             
     def requset_location(self, target):
         self.get_logger().info(f"Requesting location of {target}")
-        msg = String()
-        msg.data = target
-        self.navigator2socket_pub.publish(msg)    
+        target_locations, _, _, _ = self.query_service(target, 0.5)
+        return [target_locations[0].x, target_locations[0].y, target_locations[0].z]
         
     def request_exploration(self, target):
         self.get_logger().info(f"Requesting exploration of {target}")
@@ -77,23 +95,31 @@ class Navigator(Node):
         while rclpy.ok():
             rclpy.spin_once(self)
             if not self.prompt:
-                return
+                continue
             # a prompt comes in with the name of the object to be searched and reached
             # 0. get current pose
             current_pose = self.get_pose()
             self.get_logger().info(f"Current pose: {current_pose}")
             # 1. pass the object to semantic map to get the location
-            self.requset_location(self.prompt)        
+            self.target_location = self.requset_location(self.prompt)        
             # wait for the location to be received
             # while not self.target_location:
             #     continue
             self.get_logger().info(f"Location received: {self.target_location}")
+            
+            # input(f'Take photo when location is retrieved') # for demo 
+            
             # 2. send the location to the navigator Nav2
             self.send_goal_pos()
             # self.target_location = None
             self.get_logger().info(f"Goal sent: {self.target_location}")
-            # 3. after reaching the location, conduct exploration
-            self.request_exploration(self.prompt)
+            
+            # input(f'Take photo at location reached') # for demo 
+            while not self.nav2navigator.isTaskComplete():
+                feedback = self.nav2navigator.getFeedback()
+            
+            # # 3. after reaching the location, conduct exploration
+            # self.request_exploration(self.prompt)
             self.get_logger().info(f"Exploration started.")
             while not self.explore:
                 rclpy.spin_once(self)
@@ -107,10 +133,12 @@ class Navigator(Node):
     
     def send_goal_pos(self):
         try:
-            # x, y, theta = self.target_location
-            x, y, theta = [0.0, 0.0, 0.0]
+            x, y, _ = self.target_location
+            theta = self.odom[2]
+            # x, y, theta = [0.0, 0.0, 0.0]
         except ValueError:
-            self.get_logger().info(f'Wrong format! Please use [x,y,theta] instead.')
+            x, y, theta = self.odom
+            self.get_logger().info(f'Invalid point, stay at current position')
             return
         goal = PoseStamped()
         goal.header.frame_id = 'map'

@@ -59,7 +59,7 @@ class Yolo(Node):
         self.rgb_camera_info = None
         self.depth_camera_info = None
         
-        model_path = "~/fyp_ws/src/HKU-2425FYP-RobotHelper/navigation/nav_control_hub/models/" 
+        model_path = "./src/HKU-2425FYP-RobotHelper/navigation/nav_control_hub/models/" 
         self.model = YOLO(model_path+"yolov8x-worldv2.pt")
         # self.model = YOLO(model_path+"yoloe-11l-seg.pt")
         # self.model = YOLO(model="yoloe-s.pt")
