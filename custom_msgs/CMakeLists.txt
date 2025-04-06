@@ -10,11 +10,14 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(realsense2_camera_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/GraspQuery.msg"
   "msg/GraspResponse.msg"
-  DEPENDENCIES realsense2_camera_msgs
+  "msg/ObjectSem.msg"
+  "srv/SemanticQuery.srv"
+  DEPENDENCIES realsense2_camera_msgs geometry_msgs
 )
 
 install(DIRECTORY msg
