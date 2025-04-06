@@ -45,12 +45,10 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.create_subscriber()
 
         # arm
-        self.grasp_pressure = 0.5
+        self.grasp_pressure = 1.0
         self.grasp()
         self.EXPLORE_VIEW_JOINTS = [0.0, -1.8, 1.36, 0.0, 0.7, 0.0]
-        # self.CAPTURE_VIEW_JOINTS = [0.0, -1.2, 0.7, 0, 1.2, 0]
-        # self.CAPTURE_VIEW_JOINTS = [0.0, -0.13, 1, 0, -0.36, 0] # Move forward along the camera from the explore pose
-        self.CAPTURE_VIEW_JOINTS = [0.0, -0.26, 0.46, 0, 0.88, 0]
+        self.CAPTURE_VIEW_JOINTS = [0.0, -0.785, 0.785, 0, 0.785, 0]
         self.is_torque_on = True
         self.torque_on()
         self.go_to_explore_pose(blocking=True)
@@ -147,8 +145,6 @@ class ArmManipulator(InterbotixManipulatorXS):
         # Receive the prompt from the LLM translator
         self.node.get_logger().info(f"Received prompt: {msg.data}")
         self.text_prompt = msg.data
-        self.node.get_logger().info("Close the gripper for calibrate")
-        self.grasp()
         self.node.get_logger().info("Release the gripper")
         self.release()
         self.node.get_logger().info("Going to capture pose")
@@ -200,8 +196,10 @@ class ArmManipulator(InterbotixManipulatorXS):
         # self.arm.set_ee_pose_matrix(waypoint_matrix, moving_time=3.0)
         waypoint_matrix = t2b_matrix @ translation_matrix([-0.03, 0, 0])
         self.arm.set_ee_pose_matrix(waypoint_matrix, moving_time=5.0, blocking=True) #TODO: Add guess
-        self.arm.set_ee_pose_matrix(t2b_matrix, moving_time=2.0, blocking=False)
-        self.grasp(4.0)
+        waypoint_matrix_2 = t2b_matrix @ translation_matrix([0.015, 0, 0])
+        self.arm.set_ee_pose_matrix(waypoint_matrix_2, moving_time=2.0, blocking=True, custom_guess=self.arm.get_joint_positions())
+        # self.arm.set_ee_pose_matrix(t2b_matrix, moving_time=2.0, blocking=True, custom_guess=self.arm.get_joint_positions())
+        self.grasp(5.0)
         # self.go_to_capture_pose()
         self.go_to_explore_pose()
         self.state=ArmState.IDLE
