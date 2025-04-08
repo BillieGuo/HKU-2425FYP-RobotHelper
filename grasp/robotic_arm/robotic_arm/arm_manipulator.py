@@ -66,32 +66,40 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.root.bind("<KeyPress>", self.on_key_press)
 
         # Add a label for instructions
-        self.label = tk.Label(self.root, text="Press keys in this window to control the arm", font=("Arial", 14))
+        self.label = tk.Label(self.root, text="Press keys or buttons to control the arm.", font=("Arial", 14))
         self.label.pack(pady=10)
 
         # Add a frame for key descriptions
         self.key_frame = tk.Frame(self.root)
         self.key_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-        # Add combined key and description labels
+        # Add descriptions and buttons
         key_descriptions = [
-            ("q", "Quit and shutdown the node"),
-            ("e", "Go to explore pose"),
-            ("c", "Go to capture pose"),
-            ("s", "Go to sleep pose"),
-            ("r", "Force release the gripper"),
-            ("g", "Force grasp with the gripper"),
-            ("t", "Torque toggle"),
+            ("Go to sleep pose", "S"),
+            ("Go to explore pose", "E"),
+            ("Go to capture pose", "C"),
+            ("Force release the gripper", "R"),
+            ("Force grasp with the gripper", "G"),
+            ("Torque toggle", "T"),
+            ("Quit and shutdown the node", "Q"),
         ]
 
-        for key, description in key_descriptions:
-            combined_label = tk.Label(
-                self.key_frame,
-                text=f"{key.upper()}: {description}",
-                font=("Arial", 12),
-                anchor="w"
+        for description, key in key_descriptions:
+            frame = tk.Frame(self.key_frame)
+            frame.pack(fill=tk.X, padx=5, pady=5)
+            # Add description label
+            label = tk.Label(frame, text=description, font=("Arial", 12), anchor="w")
+            label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+            # Add button for the action
+            button = tk.Button(
+                frame, 
+                text=key, 
+                font=("Arial", 12), 
+                width=10,  # Increase button width
+                height=2,  # Increase button height
+                command=self.handle_action(key)
             )
-            combined_label.pack(fill=tk.X, padx=5, pady=2)
+            button.pack(side=tk.RIGHT)
 
         # Add a status label to show the last key pressed
         self.status_label = tk.Label(self.root, text="Last key pressed: None", font=("Arial", 12), fg="blue")
@@ -100,6 +108,38 @@ class ArmManipulator(InterbotixManipulatorXS):
         # Add a label to warn not to close the window
         self.warn_label = tk.Label(self.root, text="Do not close this window or node will die.", font=("Arial", 10), fg="red")
         self.warn_label.pack(pady=10)
+
+    def on_key_press(self, event):
+        self.handle_action(event.keysym)
+
+    def handle_action(self, key):
+        self.key_pressed = key
+        self.status_label.config(text=f"Last key pressed: {self.key_pressed}")  # Update the status label
+        if key == 'q':
+            self.node.get_logger().info("Quitting...")
+            self.go_to_sleep_pose()
+            self.root.destroy()  # Close the tkinter window
+            rclpy.shutdown()
+        elif key == 's':
+            self.node.get_logger().info("Go to sleep pose")
+            self.go_to_sleep_pose()
+        elif key == 'c':
+            self.node.get_logger().info("Go to capture pose")
+            self.go_to_capture_pose()
+        elif key == 'e':
+            self.node.get_logger().info("Go to explore pose")
+            self.go_to_explore_pose()
+        elif key == 'r':
+            self.node.get_logger().info("Force release")
+            self.release()
+        elif key == 'g':
+            self.node.get_logger().info("Force grasp")
+            self.grasp()
+        elif key == 't':
+            self.node.get_logger().info("Torque toggle")
+            self.torque_toggle()
+        # Reset the key_pressed after handling
+        self.key_pressed = None
 
     def broadcast_c2g_tf(self):
         tf_file_path =  os.path.join(package_share_directory, "config", "transform_camera2gripper.yaml")
@@ -255,35 +295,6 @@ class ArmManipulator(InterbotixManipulatorXS):
             self.torque_off()
         else:
             self.torque_on()
-
-    def on_key_press(self, event):
-        self.key_pressed = event.keysym  # Capture the key symbol
-        self.status_label.config(text=f"Last key pressed: {self.key_pressed}")  # Update the status label
-        if self.key_pressed == 'q':
-            self.node.get_logger().info("Quitting...")
-            self.go_to_sleep_pose()
-            self.root.destroy()  # Close the tkinter window
-            rclpy.shutdown()
-        elif self.key_pressed == 's':
-            self.node.get_logger().info("Go to sleep pose")
-            self.go_to_sleep_pose()
-        elif self.key_pressed == 'c':
-            self.node.get_logger().info("Go to capture pose")
-            self.go_to_capture_pose()
-        elif self.key_pressed == 'e':
-            self.node.get_logger().info("Go to explore pose")
-            self.go_to_explore_pose()
-        elif self.key_pressed == 'r':
-            self.node.get_logger().info("Force release")
-            self.release()
-        elif self.key_pressed == 'g':
-            self.node.get_logger().info("Force grasp")
-            self.grasp()
-        elif self.key_pressed == 't':
-            self.node.get_logger().info("Torque toggle")
-            self.torque_toggle()
-        # Reset the key_pressed after handling
-        self.key_pressed = None
 
     def run(self):
         try:
