@@ -102,21 +102,21 @@ class Navigator(Node):
             self.get_logger().info(f"Current pose: {current_pose}")
             # 1. pass the object to semantic map to get the location
             self.target_location = self.requset_location(self.prompt)        
-            # wait for the location to be received
-            # while not self.target_location:
-            #     continue
+            # self.target_location = [0.0, 0.0, 0.0] # hard-coded for now
             self.get_logger().info(f"Location received: {self.target_location}")
-            
-            # input(f'Take photo when location is retrieved') # for demo 
             
             # 2. send the location to the navigator Nav2
             self.send_goal_pos()
             # self.target_location = None
             self.get_logger().info(f"Goal sent: {self.target_location}")
             
-            # input(f'Take photo at location reached') # for demo 
             while not self.nav2navigator.isTaskComplete():
                 feedback = self.nav2navigator.getFeedback()
+                if (self.odom[0] - self.target_location[0])**2 + (self.odom[1] - self.target_location[1])**2 < 0.3**2:
+                    self.nav2navigator.cancelTask()
+                    self.get_logger().info(f"Goal reached, cancelling task.")
+                    break
+                self.get_logger().info(f'self.nav2navigator.isTaskComplete(): {self.nav2navigator.isTaskComplete()}')
             
             # # 3. after reaching the location, conduct exploration
             # self.request_exploration(self.prompt)
@@ -153,8 +153,9 @@ class Navigator(Node):
         goal.pose.orientation.z = q[2]
         goal.pose.orientation.w = q[3]
 
-        self.goal_publisher.publish(goal)
-        self.get_logger().info(f'Goal pose sent: x={x}, y={y}, theta={theta}')
+        # self.goal_publisher.publish(goal)
+        self.nav2navigator.goToPose(goal)
+        self.get_logger().info(f'Goal pose sent: {goal}')
 
     def get_pose(self):
         return self.odom
