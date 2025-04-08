@@ -187,7 +187,7 @@ class AnyGraspNode(Node):
 
         # Save the grasp visualization in pointcloud
         # Geometry are upside down, need to transform
-        trans_mat = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
+        trans_mat = np.array([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
         cloud.transform(trans_mat)
         grippers = gg.to_open3d_geometry_list()
         for gripper in grippers:
@@ -197,7 +197,9 @@ class AnyGraspNode(Node):
         width, height = 640, 480
         renderer = o3d.visualization.rendering.OffscreenRenderer(width, height)
         # Add geometries to the renderer
-        renderer.scene.add_geometry("cloud", cloud, o3d.visualization.rendering.MaterialRecord())
+        MaterialRecord = o3d.visualization.rendering.MaterialRecord()
+        MaterialRecord.point_size = 6
+        renderer.scene.add_geometry("cloud", cloud, MaterialRecord)
         # Visualize the pointcloud without grasp pose
         pointcloud_image = renderer.render_to_image()
         o3d.io.write_image(os.path.join(record_dir,"object_pointcloud.png"), pointcloud_image)
@@ -206,9 +208,9 @@ class AnyGraspNode(Node):
             if i == 0:
                 gripper.paint_uniform_color([1, 0, 0])
                 renderer.scene.add_geometry("best_gripper", gripper, o3d.visualization.rendering.MaterialRecord())
-            else:
-                gripper.paint_uniform_color([0, 1, 0])
-                renderer.scene.add_geometry(f"gripper_{i}", gripper, o3d.visualization.rendering.MaterialRecord())
+            # else:
+            #     gripper.paint_uniform_color([0, 1, 0])
+            #     renderer.scene.add_geometry(f"gripper_{i}", gripper, o3d.visualization.rendering.MaterialRecord())
         grasp_image = renderer.render_to_image()
         o3d.io.write_image(os.path.join(record_dir,"grasp_pointcloud.png"), grasp_image)
         self.get_logger().info("Pointcloud visualization image saved")
