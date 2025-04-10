@@ -31,7 +31,8 @@ class ArmManipulator(InterbotixManipulatorXS):
             gripper_pressure_lower_limit=60,
             gripper_pressure_upper_limit=200
         )
-        self.node = self.core.get_node()
+        # self.node = self.core.get_node()
+        self.node = rclpy.create_node("arm_manipulator")
         # tf
         self.c2g_tf_broadcaster = StaticTransformBroadcaster(self.node)
         self.camera_tf_broadcaster = StaticTransformBroadcaster(self.node)
@@ -47,6 +48,7 @@ class ArmManipulator(InterbotixManipulatorXS):
         # arm
         self.grasp_pressure = 1.0
         self.grasp()
+        self.finger_position = self.gripper.get_finger_position()
         self.EXPLORE_VIEW_JOINTS = [0.0, -1.8, 1.36, 0.0, 0.7, 0.0]
         self.CAPTURE_VIEW_JOINTS = [0.0, -0.785, 0.785, 0, 0.785, 0]
         self.is_torque_on = True
@@ -108,6 +110,20 @@ class ArmManipulator(InterbotixManipulatorXS):
         # Add a label to warn not to close the window
         self.warn_label = tk.Label(self.root, text="Do not close this window or node will die.", font=("Arial", 10), fg="red")
         self.warn_label.pack(pady=10)
+
+        self.state_label = tk.Label(self.root, text=f"Current State: {self.state.name}", font=("Arial", 12), fg="green")
+        self.state_label.pack(pady=5)
+
+        self.finger_label = tk.Label(self.root, text=f"Finger Position: {self.finger_position}", font=("Arial", 12), fg="purple")
+        self.finger_label.pack(pady=5)
+        # Start periodic updates for state and finger position
+        self.update_gui_status()
+
+    def update_gui_status(self):
+        self.state_label.config(text=f"Current State: {self.state.name}")
+        self.finger_position = self.gripper.get_finger_position()
+        self.finger_label.config(text=f"Finger Position: {self.finger_position:.3f}")
+        self.root.after(1000, self.update_gui_status)
 
     def on_key_press(self, event):
         self.handle_action(event.keysym)
@@ -180,31 +196,29 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.grasp_sub = self.node.create_subscription(GraspResponse, "/robotic_arm/grasp_response", self.grasp_callback, 10)
 
     def prompt_callback(self, msg):
-        # if self.state != ArmState.IDLE:
-        #     self.node.get_logger().warn("Arm is not in IDLE state")
-        #     return
+        if self.state != ArmState.IDLE:
+            self.node.get_logger().warn(f'Arm is not in IDLE state, receive and ignore the prompt "{msg.data}"')
+            return
         self.state = ArmState.CAPTURING
-        # Receive the prompt from the LLM translator or regenerate the grasp pose
-        self.node.get_logger().info(f"Received prompt: {msg.data}")
         self.text_prompt = msg.data
-        self.node.get_logger().info("Release the gripper")
+        # Receive the prompt from the LLM translator or regenerate the grasp pose
+        self.node.get_logger().info(f'Grasp prompt "{self.text_prompt}" received, release the gripper and go to capture pose')
         self.release()
-        self.node.get_logger().info("Going to capture pose")
         self.go_to_capture_pose()
         time.sleep(5) # Ensure the arm is stable at capture pose
         self.grasp_request_pub.publish(msg)
-        self.node.get_logger().info("Publish the prompt, waiting for the grasp pose")
+        self.node.get_logger().info("Request grasp pose, and waiting for the reponse")
 
     def grasp_callback(self, msg):
+        if self.state != ArmState.CAPTURING:
+            self.node.get_logger().warn(f'Arm is not in CAPTURING state, receive and ignore the grasp poses response')
+            return
         # Receive the grasp pose from the server
         self.state = ArmState.GRASPING
-        # self.node.get_logger().info(f"Received grasp pose: {msg}")
-        self.num_grasp_poses = msg.num_grasp_poses
-        self.grasp_poses = msg.grasp_poses
-        self.scores = msg.scores
+        self.num_grasp_poses, self.grasp_poses, self.scores = msg.num_grasp_poses, msg.grasp_poses, msg.scores
         # Use the best grasp pose
-        target_pose = self.grasp_poses[0]
-        self.node.get_logger().info(f"Using the best grasp pose: {target_pose}")
+        target_pose, best_score = self.grasp_poses[0], self.scores[0]
+        self.node.get_logger().info(f"Grasp pose response received and using the best grasp pose: {target_pose} with score {best_score}")
         # Calculate and publish the static tf from target to base
         t2c_matrix = self.pose_to_matrix(target_pose)
         c2g_matrix = self.c2g_matrix
@@ -239,13 +253,26 @@ class ArmManipulator(InterbotixManipulatorXS):
         waypoint_matrix_2 = t2b_matrix @ translation_matrix([0.015, 0, 0])
         self.arm.set_ee_pose_matrix(waypoint_matrix_2, moving_time=2.0, blocking=True, custom_guess=self.arm.get_joint_positions())
         self.grasp(5.0)
-        # self.go_to_capture_pose()
-        self.go_to_explore_pose(blocking=True)
-        # # If grasping failed, publish a prompt and grasp again
-        # if not self.is_success():
-        #     self.grasp_again_pub.publish(String(data=self.text_prompt))
-        #     self.node.get_logger().info(f"Publish the prompt to grasp again: {self.text_prompt}")
-        self.state=ArmState.IDLE
+        # Go back to the capture pose first and check whether the grasp is successful
+        self.go_to_capture_pose(blocking=True)
+        if self.is_success():
+            self.go_to_explore_pose(blocking=True)
+            self.state=ArmState.IDLE
+        else:
+            self.state=ArmState.CAPTURING
+            self.grasp_again_pub.publish(String(data=self.text_prompt))
+            self.node.get_logger().info(f"Publish the prompt to grasp again: {self.text_prompt}")
+    
+    def is_success(self):
+        # Check if the finger closes to the limit. If so, no object is grasped.
+        self.finger_close_position = 0.021
+        finger_position = self.gripper.get_finger_position()
+        self.node.get_logger().info(f"Finger position: {finger_position}")
+        if finger_position < self.finger_close_position:
+            self.node.get_logger().info("No object grasped or the object is too thin")
+            return False
+        self.node.get_logger().info(f'Object "{self.text_prompt}" grasped successfully')
+        return True
 
     def calibrate(self, matrix):
         # Calibrate the orientation of the grasp pose
@@ -281,9 +308,9 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.gripper.set_pressure(self.grasp_pressure)
         self.gripper.grasp(delay=delay)
 
-    def release(self):
+    def release(self, delay = 0.0):
         self.gripper.set_pressure(0.0)
-        self.gripper.release(delay=0.0)
+        self.gripper.release(delay=delay)
 
     def torque_off(self):
         self.core.robot_torque_enable(cmd_type='group', name='arm', enable=False)
@@ -299,16 +326,6 @@ class ArmManipulator(InterbotixManipulatorXS):
         else:
             self.torque_on()
 
-    def is_success(self):
-        # Check if the gripper is closed completely. If so, no object is grasped.
-        self.finger_close_position = 0.021
-        finger_position = self.gripper.get_finger_position()
-        self.node.get_logger().info(f"Finger position: {finger_position}")
-        if finger_position < self.finger_close_position:
-            self.node.get_logger().info("No object grasped or the object is too thin")
-            return False
-        self.node.get_logger().info("Object grasped successfully")
-        return True
 
     def run(self):
         try:
