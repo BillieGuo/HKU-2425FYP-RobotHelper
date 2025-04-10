@@ -241,10 +241,10 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.grasp(5.0)
         # self.go_to_capture_pose()
         self.go_to_explore_pose(blocking=True)
-        # If grasping failed, publish a prompt and grasp again
-        if not self.is_success():
-            self.grasp_again_pub.publish(String(data=self.text_prompt))
-            self.node.get_logger().info(f"Publish the prompt to grasp again: {self.text_prompt}")
+        # # If grasping failed, publish a prompt and grasp again
+        # if not self.is_success():
+        #     self.grasp_again_pub.publish(String(data=self.text_prompt))
+        #     self.node.get_logger().info(f"Publish the prompt to grasp again: {self.text_prompt}")
         self.state=ArmState.IDLE
 
     def calibrate(self, matrix):
