@@ -62,6 +62,7 @@ class ArmManipulator(InterbotixManipulatorXS):
     def create_gui(self):
         # Create a tkinter window for key listening
         self.root = tk.Tk()
+        self.root.attributes("-topmost", True)  # Keep the window on top
         self.root.title("Arm Manipulator Key Listener")
         self.root.bind("<KeyPress>", self.on_key_press)
 
@@ -168,7 +169,9 @@ class ArmManipulator(InterbotixManipulatorXS):
 
     def create_publisher(self):
         # Publish for the grasp request node
-        self.prompt_pub = self.node.create_publisher(String, "/text_prompt", 10)
+        self.grasp_request_pub = self.node.create_publisher(String, "/text_prompt", 10)
+        # Publish the /grasp_prompt to request the grasp pose again
+        self.grasp_again_pub = self.node.create_publisher(String, "/grasp_prompt", 10)
 
     def create_subscriber(self):
         # translator's prompt
@@ -181,15 +184,15 @@ class ArmManipulator(InterbotixManipulatorXS):
         #     self.node.get_logger().warn("Arm is not in IDLE state")
         #     return
         self.state = ArmState.CAPTURING
-        # Receive the prompt from the LLM translator
+        # Receive the prompt from the LLM translator or regenerate the grasp pose
         self.node.get_logger().info(f"Received prompt: {msg.data}")
         self.text_prompt = msg.data
         self.node.get_logger().info("Release the gripper")
         self.release()
         self.node.get_logger().info("Going to capture pose")
         self.go_to_capture_pose()
-        time.sleep(5)
-        self.prompt_pub.publish(msg)
+        time.sleep(5) # Ensure the arm is stable at capture pose
+        self.grasp_request_pub.publish(msg)
         self.node.get_logger().info("Publish the prompt, waiting for the grasp pose")
 
     def grasp_callback(self, msg):
@@ -230,17 +233,18 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.grasp_pose_tf_broadcaster.sendTransform(grasp_pose_tf_msg)
         self.node.get_logger().info("Broadcast the grasp pose")
         # Move the arm to the grasp pose
-        # Consider adding a waypoint
-        # waypoint_matrix = t2b_matrix @ translation_matrix([-0.05, 0, 0])
-        # self.arm.set_ee_pose_matrix(waypoint_matrix, moving_time=3.0)
+        # Use two waypoints to "insert" the gripper towards the object
         waypoint_matrix = t2b_matrix @ translation_matrix([-0.03, 0, 0])
-        self.arm.set_ee_pose_matrix(waypoint_matrix, moving_time=5.0, blocking=True) #TODO: Add guess
+        self.arm.set_ee_pose_matrix(waypoint_matrix, moving_time=5.0, blocking=True)
         waypoint_matrix_2 = t2b_matrix @ translation_matrix([0.015, 0, 0])
         self.arm.set_ee_pose_matrix(waypoint_matrix_2, moving_time=2.0, blocking=True, custom_guess=self.arm.get_joint_positions())
-        # self.arm.set_ee_pose_matrix(t2b_matrix, moving_time=2.0, blocking=True, custom_guess=self.arm.get_joint_positions())
         self.grasp(5.0)
         # self.go_to_capture_pose()
-        self.go_to_explore_pose()
+        self.go_to_explore_pose(blocking=True)
+        # If grasping failed, publish a prompt and grasp again
+        if not self.is_success():
+            self.grasp_again_pub.publish(String(data=self.text_prompt))
+            self.node.get_logger().info(f"Publish the prompt to grasp again: {self.text_prompt}")
         self.state=ArmState.IDLE
 
     def calibrate(self, matrix):
@@ -294,6 +298,17 @@ class ArmManipulator(InterbotixManipulatorXS):
             self.torque_off()
         else:
             self.torque_on()
+
+    def is_success(self):
+        # Check if the gripper is closed completely. If so, no object is grasped.
+        self.finger_close_position = 0.021
+        finger_position = self.gripper.get_finger_position()
+        self.node.get_logger().info(f"Finger position: {finger_position}")
+        if finger_position < self.finger_close_position:
+            self.node.get_logger().info("No object grasped or the object is too thin")
+            return False
+        self.node.get_logger().info("Object grasped successfully")
+        return True
 
     def run(self):
         try:
