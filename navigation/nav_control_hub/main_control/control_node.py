@@ -6,7 +6,7 @@ from std_msgs.msg import String
 from tf_transformations import quaternion_from_euler, euler_from_quaternion
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from nav2_simple_commander.robot_navigator import BasicNavigator
-
+import time
 import math
 from custom_msgs.srv import SemanticQuery
 
@@ -71,6 +71,8 @@ class Navigator(Node):
     def requset_location(self, target):
         self.get_logger().info(f"Requesting location of {target}")
         target_locations, _, _, _ = self.query_service(target, 0.5)
+        if not target_locations:
+            return None
         return [target_locations[0].x, target_locations[0].y, target_locations[0].z]
         
     def request_exploration(self, target):
@@ -100,9 +102,17 @@ class Navigator(Node):
             # 0. get current pose
             current_pose = self.get_pose()
             self.get_logger().info(f"Current pose: {current_pose}")
+            
             # 1. pass the object to semantic map to get the location
             self.target_location = self.requset_location(self.prompt)        
-            # self.target_location = [0.0, 0.0, 0.0] # hard-coded for now
+            if self.target_location is None:
+                self.get_logger().warning(f'No result from Semantic Map, Skip this action.')
+                self.prompt = None
+                self.explore = False
+                self.send_navigation_result(True)
+                continue
+                
+            # self.target_location = self.odom # hard-coded for now
             self.get_logger().info(f"Location received: {self.target_location}")
             
             # 2. send the location to the navigator Nav2
@@ -116,15 +126,32 @@ class Navigator(Node):
                     self.nav2navigator.cancelTask()
                     self.get_logger().info(f"Goal reached, cancelling task.")
                     break
-                self.get_logger().info(f'self.nav2navigator.isTaskComplete(): {self.nav2navigator.isTaskComplete()}')
+                self.get_logger().info(f'{feedback.navigation_time}')
+                if int(feedback.navigation_time.sec) > 60:
+                    self.nav2navigator.cancelTask()
+                    self.get_logger().info(f"Timeout, cancelling task.")
+                    self.prompt = None
+                    self.explore = False
+                    self.send_navigation_result(True)
+                    break
+            if self.prompt is None:
+                continue
             
             # # 3. after reaching the location, conduct exploration
-            # self.request_exploration(self.prompt)
+            self.request_exploration(self.prompt)
             self.get_logger().info(f"Exploration started.")
+            exploration_start_time = time.time()
+            exploration_timeout = 60  # Timeout in seconds
             while not self.explore:
                 rclpy.spin_once(self)
-                self.get_logger().info(f"Exploration in progress.")
+                if time.time() - exploration_start_time > exploration_timeout:
+                    self.get_logger().warning(f"Exploration timed out after {exploration_timeout} seconds.")
+                    self.prompt = None
+                    self.explore = False
+                    break
+                # self.get_logger().info(f"Exploration in progress.")
                 continue
+            self.get_logger().info(f"Exploration done.")
             # 4. send the exploration result to the LLM
             self.send_navigation_result(True)
             

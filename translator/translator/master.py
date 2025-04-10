@@ -163,8 +163,7 @@ class Master(Node):
 
 			self.response2socket(plans)
 			self.get_logger().info(f'All executed.')
-			continue
-		pass
+			self.nagivation_action_done = False
 
 def main():
     rclpy.init()
