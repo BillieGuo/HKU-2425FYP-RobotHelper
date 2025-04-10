@@ -9,6 +9,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy
 from translator.utils import get_config, safe_to_run
 from translator.LMP import LMP
 
+TEXT_DEBUG = False
 
 class Master(Node):
 	def __init__(self):
@@ -123,43 +124,53 @@ class Master(Node):
 		stopping_vocab_list = ['exit', 'stop', 'quit', 'terminate', 'end']
 		while rclpy.ok:
 			input_prompt = None
-			rclpy.spin_once(self, timeout_sec=0.1)
+			if TEXT_DEBUG:
+				input_prompt = input("Please enter a prompt: ") # for testing
+			else:
+				rclpy.spin_once(self, timeout_sec=0.1)
 
-			if not self.socket_update:
-				continue
-			self.socket_update = False
-   
-			# prompt handling
-			input_prompt = self.incoming_query
-			if not input_prompt:
-				continue
-			if input_prompt == 'exit':
-				break
-			if str(input_prompt).lower() in stopping_vocab_list:
-				# query.publish_cmd("stop")
-				continue
+				if not self.socket_update:
+					continue
+				self.socket_update = False
+	
+				# prompt handling
+				input_prompt = self.incoming_query
+				if not input_prompt:
+					continue
+				if input_prompt == 'exit':
+					break
+				if str(input_prompt).lower() in stopping_vocab_list:
+					# query.publish_cmd("stop")
+					continue
 			
-			# plans = self.get_plan(input_prompt)
-			plans = [f'navigator({input_prompt})', f'arm({input_prompt})'] # hard-coded for now
-			# list of action handling
+			plans = self.get_plan(input_prompt)
+			# plans = [f'navigator({input_prompt})', f'arm({input_prompt})'] # hard-coded for now
+			self.get_logger().info(f'Plans: {plans}')
+			# # list of action handling
 			for action in plans:
-				print(f"Executing action: {action}")
 				if "navigator" in action:
-					# self.navigator(action.split("(")[1].strip(")")) # wait for llm to be implemented
-					tx  = String()
-					tx.data = action.split("(")[1].strip(")")
+					result = self.navigator(action.split("(")[1].strip(")")) # [location, object]
+					if isinstance(result, tuple) and len(result) > 0:
+						result = result[0].strip()  # Extract the first element and strip any whitespace
+					# self.get_logger().info(f"Navigator result: {result}, eval: {eval(result)}")
+					tx = String()
+					tx.data = eval(result)[1] 
 					self.llm2navigator.publish(tx)
 					while not self.nagivation_action_done:
 						rclpy.spin_once(self, timeout_sec=0.1)
 						continue
 				elif "arm" in action:
-					# self.arm(action.split("(")[1].strip(")")) # wait for llm to be implemented
-					tx  = String()
-					tx.data = action.split("(")[1].strip(")")
+					result = self.arm(action.split("(")[1].strip(")")) # Object: String
+					if isinstance(result, tuple) and len(result) > 0:
+						result = result[0].strip()  # Extract the first element and strip any whitespace
+					# self.get_logger().info(f"Arm result: {result},  eval: {eval(result)[0]}")
+					tx = String()
+					tx.data = eval(result)[0]
 					self.llm2arm.publish(tx)
 					# wait for arm process to be completed
 				else:
-					print(f"Unknown action: {action}")
+					self.get_logger().info(f"Unknown action: {action}")
+				# self.get_logger().info(f"tx: {tx.data}")
 
 			self.response2socket(plans)
 			self.get_logger().info(f'All executed.')

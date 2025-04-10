@@ -3,19 +3,25 @@ import numpy as np
 
 
 # Reasoning: Move to the workbench to access the soldering iron.  
-navigator("workbench")  
+["workbench", "soldering iron"]
+###
+
+
 # Reasoning: Return to the user’s location to deliver the tool.  
-navigator("user_station")  
+["user location", "person"]
 ###
 
 
 # Reasoning: Position the robot at the centrifuge to retrieve the vial.  
-navigator("centrifuge")  
-# Reasoning: Move to the microscope for sample analysis.  
-navigator("microscope")  
+["centrifuge", "sample vial"]
+###
+
+
+# Reasoning: Move to the microscope for sample analysis. 
+["microscope", "sample vial"] 
 ###
 
 
 # Reasoning: Dispose of the waste in the bin.
-navigator("bin")  
+["bin", "waste"]
 ###

@@ -3,15 +3,15 @@ import numpy as np
 
 
 # Reasoning: Grab the tool securely for safe transport.  
-arm("soldering_iron")  
+["soldering iron"]  
 ###
 
  
 # Reasoning: Secure the vial to avoid spills during transport.  
-arm("sample_vial")  
+["sample vial"]  
 ###
 
 
 # Reasoning: Dispose of the waste in the bin.
-arm("waste")
+["waste"]
 ###
