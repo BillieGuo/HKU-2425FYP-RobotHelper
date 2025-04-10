@@ -1,0 +1,22 @@
+# Reasoning: Return to the user’s location to deliver the tool.  
+navigator("user_station")  
+# Reasoning: Release the soldering iron for user access.  
+arm("soldering_iron") 
+
+
+Query: “Bring me the soldering iron from the workbench.”
+# Reasoning: Move to the workbench to access the soldering iron.  
+navigator("workbench")  
+# Reasoning: Grab the tool securely for safe transport.  
+arm("soldering_iron")  
+###
+
+
+Query: “Transfer the sample vial from the centrifuge to the microscope.”
+# Reasoning: Position the robot at the centrifuge to retrieve the vial.  
+navigator("centrifuge")  
+# Reasoning: Secure the vial to avoid spills during transport.  
+arm("sample vial")  
+# Reasoning: Move to the microscope for sample analysis.  
+navigator("microscope")  
+###

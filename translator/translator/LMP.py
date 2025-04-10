@@ -116,11 +116,11 @@ class LMP:
             
             print(self.name)
             success = True
-            # execute the code
-            gvars = self.fixed_vars | self.variable_vars
-            lvars = {}
-            code = self.code_formatting(final)
-            success = safe_to_run(code, gvars, lvars)
+            # # execute the code
+            # gvars = self.fixed_vars | self.variable_vars
+            # lvars = {}
+            # code = self.code_formatting(final)
+            # success = safe_to_run(code, gvars, lvars)
             # if success: #and self.cfg['save_output']:
             #     print(lvars['result'])
         except KeyboardInterrupt:

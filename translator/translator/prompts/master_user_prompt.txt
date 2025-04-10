@@ -3,33 +3,14 @@ import numpy as np
 
 
 Query: “Bring me the soldering iron from the workbench.”
-# Reasoning: Move to the workbench to access the soldering iron.  
-navigator("workbench")  
-# Reasoning: Grab the tool securely for safe transport.  
-arm("soldering_iron")  
-# Reasoning: Return to the user’s location to deliver the tool.  
-navigator("user_station")  
-# Reasoning: Release the soldering iron for user access.  
-arm("soldering_iron") 
+# navigator(Reasoning: Move to the workbench to access the soldering iron.)
+# arm(Reasoning: Grab the tool securely for safe transport.) 
 ###
 
 
 Query: “Transfer the sample vial from the centrifuge to the microscope.”
-# Reasoning: Position the robot at the centrifuge to retrieve the vial.  
-navigator("centrifuge")  
-# Reasoning: Secure the vial to avoid spills during transport.  
-arm("sample_vial")  
-# Reasoning: Move to the microscope for sample analysis.  
-navigator("microscope")  
-# Reasoning: Place the vial gently on the microscope stage.  
-arm("sample_vial", "place") 
+# navigator(Reasoning: Position the robot at the centrifuge to retrieve the vial.) 
+# arm(Reasoning: Secure the vial to avoid spills during transport.)
+# navigator(Reasoning: Move to the microscope for sample analysis.)
 ###
 
-
-Query: “Dispose of the waste in the bin.”* (Ambiguous)**
-# Reasoning: Clarify which waste bin to use (hazardous vs. regular).  
-print("Clarify: Is this hazardous waste? The bin near Station A or B?")  
-# [After user responds: "Station A"]  
-navigator("hazardous_waste_bin_A")  
-arm("waste")
-###

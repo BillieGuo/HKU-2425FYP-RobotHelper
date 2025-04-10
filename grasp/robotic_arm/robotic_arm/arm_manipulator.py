@@ -84,6 +84,8 @@ class ArmManipulator(InterbotixManipulatorXS):
             ("Torque toggle", "T"),
             ("Quit and shutdown the node", "Q"),
         ]
+        # Add a status label to show the last key pressed
+        self.status_label = tk.Label(self.root, text="Last key pressed: None", font=("Arial", 12), fg="blue")
 
         for description, key in key_descriptions:
             frame = tk.Frame(self.key_frame)
@@ -96,16 +98,13 @@ class ArmManipulator(InterbotixManipulatorXS):
                 frame, 
                 text=key, 
                 font=("Arial", 12), 
-                width=10,  # Increase button width
-                height=2,  # Increase button height
-                command=self.handle_action(key)
+                width=10,
+                height=2,
+                command=lambda k=key: self.handle_action(k.lower())
             )
             button.pack(side=tk.RIGHT)
 
-        # Add a status label to show the last key pressed
-        self.status_label = tk.Label(self.root, text="Last key pressed: None", font=("Arial", 12), fg="blue")
         self.status_label.pack(pady=10)
-
         # Add a label to warn not to close the window
         self.warn_label = tk.Label(self.root, text="Do not close this window or node will die.", font=("Arial", 10), fg="red")
         self.warn_label.pack(pady=10)
@@ -242,10 +241,10 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.grasp(5.0)
         # self.go_to_capture_pose()
         self.go_to_explore_pose(blocking=True)
-        # If grasping failed, publish a prompt and grasp again
-        if not self.is_success():
-            self.grasp_again_pub.publish(String(data=self.text_prompt))
-            self.node.get_logger().info(f"Publish the prompt to grasp again: {self.text_prompt}")
+        # # If grasping failed, publish a prompt and grasp again
+        # if not self.is_success():
+        #     self.grasp_again_pub.publish(String(data=self.text_prompt))
+        #     self.node.get_logger().info(f"Publish the prompt to grasp again: {self.text_prompt}")
         self.state=ArmState.IDLE
 
     def calibrate(self, matrix):

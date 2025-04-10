@@ -112,10 +112,10 @@ bt_navigator_navigate_to_pose_rclcpp_node:
 controller_server:
   ros__parameters:
     use_sim_time: False
-    controller_frequency: 20.0
-    min_x_velocity_threshold: 0.001
+    controller_frequency: 10.0
+    min_x_velocity_threshold: 0.05
     min_y_velocity_threshold: 0.5
-    min_theta_velocity_threshold: 0.001
+    min_theta_velocity_threshold: 0.1
     failure_tolerance: 0.3
     progress_checker_plugin: "progress_checker"
     goal_checker_plugins: ["general_goal_checker"] # "precise_goal_checker"
@@ -150,52 +150,157 @@ controller_server:
       # rotate_to_goal_heading: false
 
       # DWB parameters
-      plugin: "dwb_core::DWBLocalPlanner"
-      debug_trajectory_details: True
-      min_vel_x: 0.0
-      min_vel_y: 0.0
-      max_vel_x: 0.20
-      max_vel_y: 0.0
-      max_vel_theta: 0.3
-      min_speed_xy: 0.0
-      max_speed_xy: 0.2
-      min_speed_theta: 0.0
-      # Add high threshold velocity for turtlebot 3 issue.
-      # https://github.com/ROBOTIS-GIT/turtlebot3_simulations/issues/75
-      acc_lim_x: 1.0
-      acc_lim_y: 0.0
-      acc_lim_theta: 1.0
-      decel_lim_x: -1.0
-      decel_lim_y: 0.0
-      decel_lim_theta: -1.0
-      vx_samples: 20
-      vy_samples: 1
-      vtheta_samples: 20
-      sim_time: 3.0
-      linear_granularity: 0.05
-      angular_granularity: 0.025
-      transform_tolerance: 0.2
-      xy_goal_tolerance: 0.25
-      trans_stopped_velocity: 0.25
-      short_circuit_trajectory_evaluation: True
-      stateful: True
-      critics: ["RotateToGoal", "Oscillation", "BaseObstacle", "GoalAlign", "PathAlign", "PathDist", "GoalDist"]
-      BaseObstacle.scale: 0.02
-      PathAlign.scale: 32.0
-      PathAlign.forward_point_distance: 0.1
-      GoalAlign.scale: 24.0
-      GoalAlign.forward_point_distance: 0.1
-      PathDist.scale: 32.0
-      GoalDist.scale: 24.0
-      RotateToGoal.scale: 32.0
-      RotateToGoal.slowing_factor: 5.0
-      RotateToGoal.lookahead_time: -1.0
+      # plugin: "dwb_core::DWBLocalPlanner"
+      # debug_trajectory_details: True
+      # min_vel_x: 0.0
+      # min_vel_y: 0.0
+      # max_vel_x: 0.20
+      # max_vel_y: 0.0
+      # max_vel_theta: 0.3
+      # min_speed_xy: 0.0
+      # max_speed_xy: 0.2
+      # min_speed_theta: 0.0
+      # # Add high threshold velocity for turtlebot 3 issue.
+      # # https://github.com/ROBOTIS-GIT/turtlebot3_simulations/issues/75
+      # acc_lim_x: 1.0
+      # acc_lim_y: 0.0
+      # acc_lim_theta: 1.0
+      # decel_lim_x: -1.0
+      # decel_lim_y: 0.0
+      # decel_lim_theta: -1.0
+      # vx_samples: 20
+      # vy_samples: 1
+      # vtheta_samples: 20
+      # sim_time: 3.0
+      # linear_granularity: 0.05
+      # angular_granularity: 0.025
+      # transform_tolerance: 0.2
+      # xy_goal_tolerance: 0.25
+      # trans_stopped_velocity: 0.25
+      # short_circuit_trajectory_evaluation: True
+      # stateful: True
+      # critics: ["RotateToGoal", "Oscillation", "BaseObstacle", "GoalAlign", "PathAlign", "PathDist", "GoalDist"]
+      # BaseObstacle.scale: 0.02
+      # PathAlign.scale: 32.0
+      # PathAlign.forward_point_distance: 0.1
+      # GoalAlign.scale: 24.0
+      # GoalAlign.forward_point_distance: 0.1
+      # PathDist.scale: 32.0
+      # GoalDist.scale: 24.0
+      # RotateToGoal.scale: 32.0
+      # RotateToGoal.slowing_factor: 5.0
+      # RotateToGoal.lookahead_time: -1.0
+
+      # MPPI
+      plugin: "nav2_mppi_controller::MPPIController"
+      time_steps: 56
+      model_dt: 0.1
+      batch_size: 2000
+      vx_std: 0.2
+      vy_std: 0.2
+      wz_std: 0.4
+      vx_max: 0.2
+      vx_min: -0.1
+      vy_max: 0.0
+      wz_max: 0.3
+      ax_max: 1.0
+      ax_min: -1.0
+      ay_min: -3.0
+      ay_max: 3.0
+      az_max: 0.8
+      iteration_count: 1
+      prune_distance: 2.0
+      transform_tolerance: 0.1
+      temperature: 0.3
+      gamma: 0.015
+      motion_model: "DiffDrive"
+      visualize: false
+      reset_period: 1.0 # (only in Humble)
+      regenerate_noises: false
+      TrajectoryVisualizer:
+        trajectory_step: 5
+        time_step: 3
+      # AckermannConstraints:
+      #   min_turning_r: 0.2
+      critics: ["ConstraintCritic", "CostCritic", "GoalCritic", "GoalAngleCritic", "PathAlignCritic", "PathFollowCritic", "PathAngleCritic", "PreferForwardCritic"]
+      ConstraintCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 4.0
+      GoalCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 5.0
+        threshold_to_consider: 1.4
+      GoalAngleCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 3.0
+        threshold_to_consider: 0.5
+      PreferForwardCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 5.0
+        threshold_to_consider: 0.5
+      # ObstaclesCritic:
+      #   enabled: true
+      #   cost_power: 1
+      #   repulsion_weight: 1.5
+      #   critical_weight: 20.0
+      #   consider_footprint: false
+      #   collision_cost: 10000.0
+      #   collision_margin_distance: 0.1
+      #   near_goal_distance: 0.5
+      #   inflation_radius: 0.55 # (only in Humble)
+      #   cost_scaling_factor: 10.0 # (only in Humble)
+      CostCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 3.81
+        critical_cost: 300.0
+        consider_footprint: true
+        collision_cost: 1000000.0
+        near_goal_distance: 1.0
+        trajectory_point_step: 2
+      PathAlignCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 14.0
+        max_path_occupancy_ratio: 0.05
+        trajectory_point_step: 4
+        threshold_to_consider: 0.5
+        offset_from_furthest: 20
+        use_path_orientations: false
+      PathFollowCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 5.0
+        offset_from_furthest: 5
+        threshold_to_consider: 1.4
+      PathAngleCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 2.0
+        offset_from_furthest: 4
+        threshold_to_consider: 0.5
+        max_angle_to_furthest: 1.0
+        mode: 0
+      # VelocityDeadbandCritic:
+      #   enabled: true
+      #   cost_power: 1
+      #   cost_weight: 35.0
+      #   deadband_velocities: [0.05, 0.05, 0.05]
+      # TwirlingCritic:
+      #   enabled: true
+      #   twirling_cost_power: 1
+      #   twirling_cost_weight: 10.0
+
 
 local_costmap:
   local_costmap:
     ros__parameters:
       update_frequency: 10.0
-      publish_frequency: 5.0
+      publish_frequency: 10.0
       global_frame: map
       robot_base_frame: base_link
       use_sim_time: False
@@ -204,32 +309,50 @@ local_costmap:
       height: 3
       resolution: 0.02
       robot_radius: 0.20
-      plugins: ["voxel_layer", "inflation_layer", "denoise_layer"]
-      # plugins: ["inflation_layer", "denoise_layer"]
-      inflation_layer:
-        plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
-        inflation_radius: 1.0
-      voxel_layer:
-        plugin: "nav2_costmap_2d::VoxelLayer"
+      # plugins: ["voxel_layer", "inflation_layer", "denoise_layer"]
+      plugins: ["obstacle_layer", "inflation_layer", "denoise_layer"]
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
-        publish_voxel_map: True
-        origin_z: 0.0
-        z_resolution: 0.05
-        z_voxels: 16
-        max_obstacle_height: 1.0
-        mark_threshold: 0
         observation_sources: scan
         scan:
           topic: /scan
+          # topic: /livox/lidar
           max_obstacle_height: 1.0
-          clearing: True
-          marking: True
-          data_type: "LaserScan"
+          data_type: "LaserScan" 
           raytrace_max_range: 3.0
           raytrace_min_range: 0.0
           obstacle_max_range: 2.5
           obstacle_min_range: 0.0
+          # data_type: "PointCloud2"
+          # max_obstacle_height: 1.0
+          # min_obstacle_height: 0.0
+          clearing: True
+          marking: True
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 1.0
+      # voxel_layer:
+      #   plugin: "nav2_costmap_2d::VoxelLayer"
+      #   enabled: True
+      #   publish_voxel_map: True
+      #   origin_z: 0.0
+      #   z_resolution: 0.05
+      #   z_voxels: 16
+      #   max_obstacle_height: 1.0
+      #   mark_threshold: 0
+      #   observation_sources: scan
+      #   scan:
+      #     topic: /scan
+      #     max_obstacle_height: 1.0
+      #     clearing: True
+      #     marking: True
+      #     data_type: "LaserScan"
+      #     raytrace_max_range: 3.0
+      #     raytrace_min_range: 0.0
+      #     obstacle_max_range: 2.5
+      #     obstacle_min_range: 0.0
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: True
@@ -243,7 +366,7 @@ local_costmap:
 global_costmap:
   global_costmap:
     ros__parameters:
-      update_frequency: 4.0
+      update_frequency: 2.0
       publish_frequency: 2.0
       global_frame: map
       robot_base_frame: base_link
@@ -254,21 +377,22 @@ global_costmap:
       robot_radius: 0.20
       resolution: 0.02
       track_unknown_space: true
-      plugins: ["static_layer", "obstacle_layer", "inflation_layer", "denoise_layer"]
-      obstacle_layer:
-        plugin: "nav2_costmap_2d::ObstacleLayer"
-        enabled: True
-        observation_sources: scan
-        scan:
-          topic: /scan
-          max_obstacle_height: 1.0
-          clearing: True
-          marking: True
-          data_type: "LaserScan"
-          raytrace_max_range: 3.0
-          raytrace_min_range: 0.0
-          obstacle_max_range: 2.5
-          obstacle_min_range: 0.0
+      # plugins: ["static_layer", "obstacle_layer", "inflation_layer", "denoise_layer"]
+      plugins: ["static_layer", "inflation_layer", "denoise_layer"]
+      # obstacle_layer:
+      #   plugin: "nav2_costmap_2d::ObstacleLayer"
+      #   enabled: True
+      #   observation_sources: scan
+      #   scan:
+      #     topic: /scan
+      #     max_obstacle_height: 1.0
+      #     clearing: True
+      #     marking: True
+      #     data_type: "LaserScan"
+      #     raytrace_max_range: 3.0
+      #     raytrace_min_range: 0.0
+      #     obstacle_max_range: 2.5
+      #     obstacle_min_range: 0.0
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: True
@@ -304,21 +428,71 @@ planner_server:
     use_sim_time: False
     planner_plugins: ["GridBased"]
     GridBased:
-      plugin: "nav2_navfn_planner/NavfnPlanner"
-      tolerance: 0.5
-      use_astar: true
-      allow_unknown: true
-      use_final_approach_orientation: true
+      # plugin: "nav2_navfn_planner/NavfnPlanner"
+      # tolerance: 0.5
+      # use_astar: true
+      # allow_unknown: true
+      # use_final_approach_orientation: true
+
+      plugin: "nav2_theta_star_planner/ThetaStarPlanner"
+      how_many_corners: 8
+      w_euc_cost: 1.0
+      w_traversal_cost: 2.0
+      w_heuristic_cost: 1.0
+
+      # plugin: "nav2_smac_planner/SmacPlanner2D"
+      # tolerance: 0.125                      # tolerance for planning if unable to reach exact pose, in meters
+      # downsample_costmap: false             # whether or not to downsample the map
+      # downsampling_factor: 1                # multiplier for the resolution of the costmap layer (e.g. 2 on a 5cm costmap would be 10cm)
+      # allow_unknown: true                   # allow traveling in unknown space
+      # max_iterations: 1000000               # maximum total iterations to search for before failing (in case unreachable), set to -1 to disable
+      # max_on_approach_iterations: 1000      # maximum number of iterations to attempt to reach goal once in tolerance
+      # max_planning_time: 2.0                # max time in s for planner to plan, smooth
+      # cost_travel_multiplier: 2.0           # Cost multiplier to apply to search to steer away from high cost areas. Larger values will place in the center of aisles more exactly (if non-`FREE` cost potential field exists) but take slightly longer to compute. To optimize for speed, a value of 1.0 is reasonable. A reasonable tradeoff value is 2.0. A value of 0.0 effective disables steering away from obstacles and acts like a naive binary search A*.
+      # use_final_approach_orientation: false # Whether to set the final path pose at the goal's orientation to the requested orientation (false) or in line with the approach angle so the robot doesn't rotate to heading (true)
+      # smoother:
+      #   max_iterations: 1000
+      #   w_smooth: 0.3
+      #   w_data: 0.2
+      #   tolerance: 1.0e-10
 
 smoother_server:
   ros__parameters:
-    use_sim_time: False
-    smoother_plugins: ["simple_smoother"]
-    simple_smoother:
-      plugin: "nav2_smoother::SimpleSmoother"
-      tolerance: 1.0e-10
-      max_its: 1000
-      do_refinement: True
+    use_sim_time: True
+    smoother_plugins: ["SmoothPath"]
+    SmoothPath:
+      # # SimpleSmoother
+      # plugin: "nav2_smoother::SimpleSmoother"
+      # tolerance: 1.0e-10
+      # max_its: 1000
+      # do_refinement: True
+
+      plugin: "nav2_constrained_smoother/ConstrainedSmoother"
+      reversing_enabled: true       # whether to detect forward/reverse direction and cusps. Should be set to false for paths without orientations assigned
+      path_downsampling_factor: 3   # every n-th node of the path is taken. Useful for speed-up
+      path_upsampling_factor: 1     # 0 - path remains downsampled, 1 - path is upsampled back to original granularity using cubic bezier, 2... - more upsampling
+      keep_start_orientation: false  # whether to prevent the start orientation from being smoothed
+      keep_goal_orientation: false   # whether to prevent the gpal orientation from being smoothed
+      minimum_turning_radius: 0.40  # minimum turning radius the robot can perform. Can be set to 0.0 (or w_curve can be set to 0.0 with the same effect) for diff-drive/holonomic robots
+      w_curve: 30.0                 # weight to enforce minimum_turning_radius
+      w_dist: 0.0                   # weight to bind path to original as optional replacement for cost weight
+      w_smooth: 2000000.0           # weight to maximize smoothness of path
+      w_cost: 0.015                 # weight to steer robot away from collision and cost
+
+      # Parameters used to improve obstacle avoidance near cusps (forward/reverse movement changes)
+      w_cost_cusp_multiplier: 3.0   # option to use higher weight during forward/reverse direction change which is often accompanied with dangerous rotations
+      cusp_zone_length: 2.5         # length of the section around cusp in which nodes use w_cost_cusp_multiplier (w_cost rises gradually inside the zone towards the cusp point, whose costmap weight eqals w_cost*w_cost_cusp_multiplier)
+
+      # Points in robot frame to grab costmap values from. Format: [x1, y1, weight1, x2, y2, weight2, ...]
+      # IMPORTANT: Requires much higher number of iterations to actually improve the path. Uncomment only if you really need it (highly elongated/asymmetric robots)
+      # cost_check_points: [-0.185, 0.0, 1.0]
+
+      optimizer:
+        max_iterations: 70            # max iterations of smoother
+        debug_optimizer: false        # print debug info
+        gradient_tol: 5e3
+        fn_tol: 1.0e-15
+        param_tol: 1.0e-20
 
 behavior_server:
   ros__parameters:
@@ -366,10 +540,10 @@ velocity_smoother:
     smoothing_frequency: 20.0
     scale_velocities: False
     feedback: "OPEN_LOOP"
-    max_velocity: [0.26, 0.0, 1.0]
-    min_velocity: [-0.26, 0.0, -1.0]
-    max_accel: [2.5, 0.0, 3.2]
-    max_decel: [-2.5, 0.0, -3.2]
+    max_velocity: [0.2, 0.0, 0.5]
+    min_velocity: [-0.05, 0.0, -0.5]
+    max_accel: [1.0, 0.0, 1.5]
+    max_decel: [-1.0, 0.0, -1.5]
     odom_topic: /Odometry
     odom_duration: 0.1
     deadband_velocity: [0.0, 0.0, 0.0]

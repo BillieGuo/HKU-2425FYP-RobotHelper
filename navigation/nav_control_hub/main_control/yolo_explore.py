@@ -58,6 +58,8 @@ class Yolo(Node):
         self.prompt = None
         self.rgb_camera_info = None
         self.depth_camera_info = None
+        self.distance_windows = [0,0,0,0,0]
+        self.windows_index = 0
         
         model_path = "./src/HKU-2425FYP-RobotHelper/navigation/nav_control_hub/models/" 
         self.model = YOLO(model_path+"yolov8x-worldv2.pt")
@@ -141,7 +143,11 @@ class Yolo(Node):
 
                     # get distance from detect_result with simple filter
                     if detect_result["distance"] > 100:
-                        distance = distance * 0.9 + detect_result["distance"] * 0.1
+                        self.distance_windows[self.windows_index] = detect_result["distance"]
+                        self.windows_index += 1
+                        if self.windows_index >= 5:
+                            self.windows_index = 0
+                        distance = sum(self.distance_windows) / len(self.distance_windows)
                     self.get_logger().info(f"Distance: {distance}")
                     # Move the car to the object
                     self.send_foward_command()
