@@ -109,7 +109,7 @@ class Navigator(Node):
                 self.get_logger().warning(f'No result from Semantic Map, Skip this action.')
                 self.prompt = None
                 self.explore = False
-                self.send_navigation_result(True)
+                self.send_navigation_result(False)
                 continue
                 
             # self.target_location = self.odom # hard-coded for now
@@ -131,32 +131,35 @@ class Navigator(Node):
                     self.nav2navigator.cancelTask()
                     self.get_logger().info(f"Timeout, cancelling task.")
                     self.prompt = None
-                    self.explore = False
-                    self.send_navigation_result(True)
+                    self.explore = None
+                    self.send_navigation_result(False)
                     break
             if self.prompt is None:
                 continue
             
-            # # 3. after reaching the location, conduct exploration
+            # 3. after reaching the location, conduct exploration
             self.request_exploration(self.prompt)
             self.get_logger().info(f"Exploration started.")
             exploration_start_time = time.time()
             exploration_timeout = 60  # Timeout in seconds
-            while not self.explore:
+            while self.explore is None:
                 rclpy.spin_once(self)
                 if time.time() - exploration_start_time > exploration_timeout:
                     self.get_logger().warning(f"Exploration timed out after {exploration_timeout} seconds.")
                     self.prompt = None
                     self.explore = False
+                    self.request_exploration("stop")
                     break
                 # self.get_logger().info(f"Exploration in progress.")
                 continue
             self.get_logger().info(f"Exploration done.")
             # 4. send the exploration result to the LLM
-            self.send_navigation_result(True)
+            result = True if self.prompt is None else False
+            self.send_navigation_result(result)
             
             self.prompt = None
-            self.explore = False
+            self.explore = None
+            self.get_logger().info(f"Reset.")
     
     def send_goal_pos(self):
         try:
