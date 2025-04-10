@@ -12,8 +12,7 @@ from interbotix_common_modules.common_robot.robot import robot_shutdown, robot_s
 from enum import Enum
 from tf_transformations import quaternion_from_matrix, quaternion_matrix, rotation_matrix, inverse_matrix, translation_matrix
 from ament_index_python.packages import get_package_share_directory
-import time
-import tkinter as tk  # Add this import
+import tkinter as tk
 
 package_share_directory = get_package_share_directory("robotic_arm")
 
@@ -51,7 +50,7 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.CAPTURE_VIEW_JOINTS = [0.0, -0.785, 0.785, 0, 0.785, 0]
         self.is_torque_on = True
         self.torque_on()
-        self.go_to_explore_pose(blocking=True)
+        self.go_to_explore_pose()
         self.state = ArmState.IDLE
         self.node.get_logger().info("ArmManipulator initialized")
 
@@ -180,31 +179,29 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.grasp_sub = self.node.create_subscription(GraspResponse, "/robotic_arm/grasp_response", self.grasp_callback, 10)
 
     def prompt_callback(self, msg):
-        # if self.state != ArmState.IDLE:
-        #     self.node.get_logger().warn("Arm is not in IDLE state")
-        #     return
-        self.state = ArmState.CAPTURING
+        if self.state != ArmState.IDLE:
+            self.node.get_logger().warn(f'Arm is not in IDLE state, ignore the prompt "{msg.data}" ')
+            return
+        
         # Receive the prompt from the LLM translator or regenerate the grasp pose
-        self.node.get_logger().info(f"Received prompt: {msg.data}")
         self.text_prompt = msg.data
-        self.node.get_logger().info("Release the gripper")
-        self.release()
-        self.node.get_logger().info("Going to capture pose")
+        self.state = ArmState.CAPTURING
+        self.node.get_logger().info(f'Received prompt: "{self.text_prompt}". Go to capture pose and release the gripper.')
         self.go_to_capture_pose()
-        time.sleep(5) # Ensure the arm is stable at capture pose
-        self.grasp_request_pub.publish(msg)
-        self.node.get_logger().info("Publish the prompt, waiting for the grasp pose")
-
-    def grasp_callback(self, msg):
+        self.release()
+        # Wait for the arm to be stable to capture the image
+        self.node.create_timer(5.0, lambda: self.grasp_request_pub.publish(msg))
+        self.node.create_timer(5.0, lambda: self.node.get_logger().info("Requesting grasp pose, waiting for the response..."))
+        
+    def grasp_callback(self, msg:GraspResponse):
         # Receive the grasp pose from the server
         self.state = ArmState.GRASPING
-        # self.node.get_logger().info(f"Received grasp pose: {msg}")
         self.num_grasp_poses = msg.num_grasp_poses
         self.grasp_poses = msg.grasp_poses
         self.scores = msg.scores
         # Use the best grasp pose
         target_pose = self.grasp_poses[0]
-        self.node.get_logger().info(f"Using the best grasp pose: {target_pose}")
+        self.node.get_logger().info(f"Grasp poses received. Using the best grasp pose: {target_pose} with score {self.scores[0]}")
         # Calculate and publish the static tf from target to base
         t2c_matrix = self.pose_to_matrix(target_pose)
         c2g_matrix = self.c2g_matrix
@@ -238,9 +235,13 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.arm.set_ee_pose_matrix(waypoint_matrix, moving_time=5.0, blocking=True)
         waypoint_matrix_2 = t2b_matrix @ translation_matrix([0.015, 0, 0])
         self.arm.set_ee_pose_matrix(waypoint_matrix_2, moving_time=2.0, blocking=True, custom_guess=self.arm.get_joint_positions())
-        self.grasp(5.0)
-        # self.go_to_capture_pose()
-        self.go_to_explore_pose(blocking=True)
+        self.grasp()
+        # Wait for the finger closing and move back to capture pose
+        self.node.create_timer(5.0, lambda: self.go_to_capture_pose())
+        if self.is_success():
+            self.go_to_explore_pose()
+
+
         # # If grasping failed, publish a prompt and grasp again
         # if not self.is_success():
         #     self.grasp_again_pub.publish(String(data=self.text_prompt))
@@ -268,18 +269,18 @@ class ArmManipulator(InterbotixManipulatorXS):
         matrix[:3, 3] = translation
         return matrix
 
-    def go_to_capture_pose(self, blocking=False):
-        self.arm.set_joint_positions(self.CAPTURE_VIEW_JOINTS, moving_time=5.0, blocking=blocking)
+    def go_to_capture_pose(self):
+        self.arm.set_joint_positions(self.CAPTURE_VIEW_JOINTS, moving_time=5.0, blocking=False)
 
-    def go_to_explore_pose(self, blocking=False):
-        self.arm.set_joint_positions(self.EXPLORE_VIEW_JOINTS, moving_time=5.0, blocking=blocking)
+    def go_to_explore_pose(self):
+        self.arm.set_joint_positions(self.EXPLORE_VIEW_JOINTS, moving_time=5.0, blocking=False)
 
     def go_to_sleep_pose(self):
-        self.arm.go_to_sleep_pose(blocking=False)
+        self.arm.go_to_sleep_pose(moving_time=5.0, blocking=False)
 
-    def grasp(self, delay = 0.0):
+    def grasp(self):
         self.gripper.set_pressure(self.grasp_pressure)
-        self.gripper.grasp(delay=delay)
+        self.gripper.grasp(delay=0.0)
 
     def release(self):
         self.gripper.set_pressure(0.0)
