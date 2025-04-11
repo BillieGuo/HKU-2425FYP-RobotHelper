@@ -184,7 +184,7 @@ class Navigator(Node):
         goal.pose.orientation.w = q[3]
 
         # self.goal_publisher.publish(goal)
-        self.nav2navigator.goToPose(goal)
+        self.nav2navigator.goToPose(goal, behavior_tree='Pause Near Goal-Obstacle')
         self.get_logger().info(f'Goal pose sent: {goal}')
 
     def get_pose(self):
