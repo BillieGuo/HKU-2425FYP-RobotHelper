@@ -31,8 +31,8 @@ class ArmManipulator(InterbotixManipulatorXS):
             gripper_pressure_lower_limit=60,
             gripper_pressure_upper_limit=200
         )
-        # self.node = self.core.get_node()
-        self.node = rclpy.create_node("arm_manipulator")
+        self.node = self.core.get_node()
+        # self.node = rclpy.create_node("arm_manipulator")
         # tf
         self.c2g_tf_broadcaster = StaticTransformBroadcaster(self.node)
         self.camera_tf_broadcaster = StaticTransformBroadcaster(self.node)
@@ -196,9 +196,9 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.grasp_sub = self.node.create_subscription(GraspResponse, "/robotic_arm/grasp_response", self.grasp_callback, 10)
 
     def prompt_callback(self, msg):
-        if self.state != ArmState.IDLE:
-            self.node.get_logger().warn(f'Arm is not in IDLE state, receive and ignore the prompt "{msg.data}"')
-            return
+        # if self.state != ArmState.IDLE:
+        #     self.node.get_logger().warn(f'Arm is not in IDLE state, receive and ignore the prompt "{msg.data}"')
+        #     return
         self.state = ArmState.CAPTURING
         self.text_prompt = msg.data
         # Receive the prompt from the LLM translator or regenerate the grasp pose
@@ -209,7 +209,7 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.grasp_request_pub.publish(msg)
         self.node.get_logger().info("Request grasp pose, and waiting for the reponse")
 
-    def grasp_callback(self, msg):
+    def grasp_callback(self, msg: GraspResponse):
         if self.state != ArmState.CAPTURING:
             self.node.get_logger().warn(f'Arm is not in CAPTURING state, receive and ignore the grasp poses response')
             return
@@ -265,7 +265,7 @@ class ArmManipulator(InterbotixManipulatorXS):
     
     def is_success(self):
         # Check if the finger closes to the limit. If so, no object is grasped.
-        self.finger_close_position = 0.021
+        self.finger_close_position = 0.017
         finger_position = self.gripper.get_finger_position()
         self.node.get_logger().info(f"Finger position: {finger_position}")
         if finger_position < self.finger_close_position:
