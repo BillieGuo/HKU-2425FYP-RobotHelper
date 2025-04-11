@@ -81,6 +81,10 @@ class Yolo(Node):
 
     def navigator_request_callback(self, msg):
         if msg.data:
+            if msg.data == "stop":
+                self.get_logger().info("Stop command received.")
+                self.prompt = None
+                return
             self.prompt = msg.data
         self.get_logger().info(f"Received prompt: {self.prompt}")
         return
@@ -129,6 +133,12 @@ class Yolo(Node):
 
                 distance = 1000
                 while self.exploration_not_complete(distance):
+                    rclpy.spin_once(self, timeout_sec=0.001)
+                    if self.prompt is None:
+                        self.get_logger().info("Interupted by navigator, stopping exploration.")
+                        self.send_stop_command()
+                        break
+                    
                     # Use yolo to detect the target object
                     is_detected, detect_result = self.detect_object(self.prompt)
 
@@ -155,6 +165,8 @@ class Yolo(Node):
                 # Complete exploring, stop moving
                 self.get_logger().info("Exploration complete, stopping.")
                 result = "Success"
+                if self.prompt is None:
+                    result = "Failure"
                 self.pub_to_navigator(result)
                 self.send_stop_command()
                 self.prompt = None

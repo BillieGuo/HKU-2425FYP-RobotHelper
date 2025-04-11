@@ -18,7 +18,7 @@ class Master(Node):
 		self.navigator = None 
 		self.arm = None 
 		self.socket_update = False
-		self.nagivation_action_done = False
+		self.navigation_action_done = None
 		self.model_init()
   
 		qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
@@ -62,7 +62,7 @@ class Master(Node):
 	def navigator_response_callback(self, msg):
 		if msg.data:
 			self.get_logger().info(f'navigator response: {msg.data}')
-			self.nagivation_action_done = bool(msg.data)
+			self.navigation_action_done = bool(msg.data)
 		pass
 
 	def master_response_callback(self, msg):
@@ -156,10 +156,13 @@ class Master(Node):
 					tx = String()
 					tx.data = eval(result)[1] 
 					self.llm2navigator.publish(tx)
-					while not self.nagivation_action_done:
+					while self.navigation_action_done is None:
 						rclpy.spin_once(self, timeout_sec=0.1)
 						continue
 				elif "arm" in action:
+					if self.navigation_action_done is False:
+						self.get_logger().info(f"Navigation failed, skipping arm action.")
+						continue
 					result = self.arm(action.split("(")[1].strip(")")) # Object: String
 					if isinstance(result, tuple) and len(result) > 0:
 						result = result[0].strip()  # Extract the first element and strip any whitespace
@@ -174,7 +177,7 @@ class Master(Node):
 
 			self.response2socket(plans)
 			self.get_logger().info(f'All executed.')
-			self.nagivation_action_done = False
+			self.navigation_action_done = None
 
 def main():
     rclpy.init()
