@@ -15,8 +15,10 @@ class SerialNode(Node):
         self.ser = None
         self.last_time = 0
         self.variables = (0, 0, 0) # x, y, theta
+        self.is_display_info = False
         self.cmdvel_sub = self.create_subscription(Twist, '/cmd_vel', self.cmdvel_callback, 10)
         self.yolo2ser = self.create_subscription(Twist, 'yolo2ser', self.cmdvel_callback, 10)
+        self.timer = self.create_timer(4.0, self.timer_callback)
 
     def read_from_serial(self):
         if self.ser.in_waiting > 0:
@@ -33,7 +35,9 @@ class SerialNode(Node):
                         
                     if eof_value == 0x5A:
                         self.variables = variables # Update the variables
-                        self.get_logger().info(f"Received variables: {variables}")
+                        if self.is_display_info:
+                            self.get_logger().info(f"Received Wheel Odom: {variables}")
+                            self.is_display_info = False
                         # self.get_logger().info('Broadcasted transform from odom to base_link')
                         # time_diff = time.time() - self.last_time
                         # self.last_time = time.time()
@@ -41,13 +45,15 @@ class SerialNode(Node):
                                         
         
     def cmdvel_callback(self, msg):
-        self.get_logger().info(f"Received cmd_vel: {msg}")
+        if self.is_display_info:
+            self.get_logger().info(f"Received cmd_vel: {msg}")
         # Convert the Twist message to 3 variables
         x, y, theta = 0.0, 0.0, 0.0
         x = msg.linear.x
         y = msg.linear.y
         theta = msg.angular.z
-        self.get_logger().info(f"Converted cmd_vel: {x}, {y}, {theta}")
+        if self.is_display_info:
+            self.get_logger().info(f"Converted cmd_vel: {x}, {y}, {theta}")
         # Pack the 3 variables into a byte array
         tx_buf = bytearray()
         tx_buf.append(0x5A)
@@ -58,8 +64,13 @@ class SerialNode(Node):
         tx_buf.append(0xA5)
         # Send the byte array to the serial port
         self.ser.write(tx_buf)
-        self.get_logger().info(f"Sent cmd_vel: {tx_buf}")
+        if self.is_display_info:
+            self.get_logger().info(f"Sent cmd_vel: {tx_buf}")
+            self.is_display_info = False
         pass
+
+    def timer_callback(self):
+        self.is_display_info = True
 
 def main(args=None):
     rclpy.init(args=args)

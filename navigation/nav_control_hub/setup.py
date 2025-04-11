@@ -10,6 +10,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/launch', ['launch/navigator.launch.py']),  # Added line
     ],
     install_requires=['setuptools'],
     zip_safe=True,

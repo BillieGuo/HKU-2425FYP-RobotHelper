@@ -42,6 +42,11 @@ install(TARGETS livox_to_laserscan
 install(TARGETS custom_tf_pub
   DESTINATION lib/${PROJECT_NAME})
 
+# Install the launch file
+install(DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}
+)
+
 ament_export_dependencies(rclcpp livox_ros_driver2 sensor_msgs geometry_msgs tf2_ros)
 ament_export_include_directories(include)
 ament_export_libraries(livox_to_laserscan custom_tf_pub)

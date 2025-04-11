@@ -4,15 +4,28 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.actions import IncludeLaunchDescription
 from launch.substitutions import PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
+from ament_index_python.packages import get_package_share_directory
+from launch.substitutions import LaunchConfiguration
+import os
 
 def generate_launch_description():
+    
+    fast_lio_dir = get_package_share_directory('fast_lio')
+    slam_dir = get_package_share_directory('slam_toolbox')
+    nav2_dir = get_package_share_directory('nav2_bringup')
+    nav_control_hub_dir = os.getcwd()+'/src/HKU-2425FYP-RobotHelper/navigation/nav_control_hub'
+    nav_params_path = LaunchConfiguration(
+        'nav_params', 
+        default=os.path.join(nav_control_hub_dir, 'configs', 'nav_params.yaml')  # Corrected path
+    )
+
     fast_lio_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            PathJoinSubstitution([
-                FindPackageShare('fast_lio'),
+            os.path.join(
+                fast_lio_dir,
                 'launch',
                 'mapping.launch.py'
-            ])
+            )
         ),
         launch_arguments={
             'config_file': 'avia.yaml', 
@@ -23,7 +36,7 @@ def generate_launch_description():
     slam_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
-                FindPackageShare('slam_toolbox'),
+                slam_dir,
                 'launch',
                 'online_async_launch.py'
             ])
@@ -36,33 +49,34 @@ def generate_launch_description():
     nav2_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
-                FindPackageShare('nav2_bringup'),
+                nav2_dir,
                 'launch',
                 'navigation_launch.py'
             ])
         ),
         launch_arguments={
-            'use_sim_time': 'false'
+            'use_sim_time': 'false',
+            'params_file': nav_params_path
         }.items()
     )
     
     control_node = Node(
         package='nav_control_hub',
-        executable='control_node',
+        executable='control',
         name='control_node',
         output='screen'
     )
     
     yolo_explore_node = Node(
         package='nav_control_hub',
-        executable='yolo_explore',
+        executable='explore',
         name='yolo_explore',
         output='screen'
     )
     
     serial_node = Node(
         package='nav_control_hub',
-        executable='serial_node',
+        executable='serial',
         name='serial_node',
         output='screen'
     )

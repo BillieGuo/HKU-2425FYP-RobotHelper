@@ -112,7 +112,7 @@ bt_navigator_navigate_to_pose_rclcpp_node:
 controller_server:
   ros__parameters:
     use_sim_time: False
-    controller_frequency: 10.0
+    controller_frequency: 20.0
     min_x_velocity_threshold: 0.05
     min_y_velocity_threshold: 0.5
     min_theta_velocity_threshold: 0.1
@@ -149,7 +149,7 @@ controller_server:
       # simulate_ahead_time: 1.0
       # rotate_to_goal_heading: false
 
-      # DWB parameters
+      # # DWB parameters
       # plugin: "dwb_core::DWBLocalPlanner"
       # debug_trajectory_details: True
       # min_vel_x: 0.0
@@ -194,7 +194,7 @@ controller_server:
       # MPPI
       plugin: "nav2_mppi_controller::MPPIController"
       time_steps: 56
-      model_dt: 0.1
+      model_dt: 0.05
       batch_size: 2000
       vx_std: 0.2
       vy_std: 0.2
@@ -377,22 +377,22 @@ global_costmap:
       robot_radius: 0.20
       resolution: 0.02
       track_unknown_space: true
-      # plugins: ["static_layer", "obstacle_layer", "inflation_layer", "denoise_layer"]
-      plugins: ["static_layer", "inflation_layer", "denoise_layer"]
-      # obstacle_layer:
-      #   plugin: "nav2_costmap_2d::ObstacleLayer"
-      #   enabled: True
-      #   observation_sources: scan
-      #   scan:
-      #     topic: /scan
-      #     max_obstacle_height: 1.0
-      #     clearing: True
-      #     marking: True
-      #     data_type: "LaserScan"
-      #     raytrace_max_range: 3.0
-      #     raytrace_min_range: 0.0
-      #     obstacle_max_range: 2.5
-      #     obstacle_min_range: 0.0
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer", "denoise_layer"]
+      # plugins: ["static_layer", "inflation_layer", "denoise_layer"]
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: True
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 1.0
+          clearing: True
+          marking: True
+          data_type: "LaserScan"
+          raytrace_max_range: 3.0
+          raytrace_min_range: 0.0
+          obstacle_max_range: 2.5
+          obstacle_min_range: 0.0
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: True
@@ -437,8 +437,10 @@ planner_server:
       plugin: "nav2_theta_star_planner/ThetaStarPlanner"
       how_many_corners: 8
       w_euc_cost: 1.0
-      w_traversal_cost: 2.0
+      w_traversal_cost: 1.0
       w_heuristic_cost: 1.0
+      use_final_approach_orientation: true
+      tolerance: 0.5
 
       # plugin: "nav2_smac_planner/SmacPlanner2D"
       # tolerance: 0.125                      # tolerance for planning if unable to reach exact pose, in meters
@@ -458,7 +460,7 @@ planner_server:
 
 smoother_server:
   ros__parameters:
-    use_sim_time: True
+    use_sim_time: False
     smoother_plugins: ["SmoothPath"]
     SmoothPath:
       # # SimpleSmoother
@@ -473,7 +475,7 @@ smoother_server:
       path_upsampling_factor: 1     # 0 - path remains downsampled, 1 - path is upsampled back to original granularity using cubic bezier, 2... - more upsampling
       keep_start_orientation: false  # whether to prevent the start orientation from being smoothed
       keep_goal_orientation: false   # whether to prevent the gpal orientation from being smoothed
-      minimum_turning_radius: 0.40  # minimum turning radius the robot can perform. Can be set to 0.0 (or w_curve can be set to 0.0 with the same effect) for diff-drive/holonomic robots
+      minimum_turning_radius: 0.00  # minimum turning radius the robot can perform. Can be set to 0.0 (or w_curve can be set to 0.0 with the same effect) for diff-drive/holonomic robots
       w_curve: 30.0                 # weight to enforce minimum_turning_radius
       w_dist: 0.0                   # weight to bind path to original as optional replacement for cost weight
       w_smooth: 2000000.0           # weight to maximize smoothness of path
