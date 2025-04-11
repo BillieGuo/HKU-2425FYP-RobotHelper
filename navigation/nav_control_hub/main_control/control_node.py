@@ -58,7 +58,6 @@ class Navigator(Node):
         # Convert quaternion to Euler angles
         roll, pitch, yaw = euler_from_quaternion([qx, qy, qz, qw])
         self.odom = [x, y, yaw] # x, y and theta
-        # self.get_logger().info(f'Current odom: {self.odom}')
         
     def llm_request_callback(self, msg):
         if msg.data:
@@ -117,7 +116,6 @@ class Navigator(Node):
             
             # 2. send the location to the navigator Nav2
             self.send_goal_pos()
-            # self.target_location = None
             self.get_logger().info(f"Goal sent: {self.target_location}")
             
             while not self.nav2navigator.isTaskComplete():
