@@ -35,6 +35,7 @@ license/
 
 # Test files
 test/
+anygrasp_test/
 
 # Records
 image_process_record/
