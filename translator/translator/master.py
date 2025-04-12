@@ -18,7 +18,7 @@ class Master(Node):
 		self.navigator = None 
 		self.arm = None 
 		self.socket_update = False
-		self.navigation_action_done = None
+		self.navigation_action_status = None
 		self.model_init()
   
 		qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
@@ -62,7 +62,7 @@ class Master(Node):
 	def navigator_response_callback(self, msg):
 		if msg.data:
 			self.get_logger().info(f'navigator response: {msg.data}')
-			self.navigation_action_done = bool(msg.data)
+			self.navigation_action_status = True if msg.data == 'True' else False
 		pass
 
 	def master_response_callback(self, msg):
@@ -145,28 +145,28 @@ class Master(Node):
 			
 			plans = self.get_plan(input_prompt)
 			# plans = [f'navigator({input_prompt})', f'arm({input_prompt})'] # hard-coded for now
-			self.get_logger().info(f'Plans: {plans}')
+			self.get_logger().info(f'Plans: {plans}') if TEXT_DEBUG else self.nothing()
 			# # list of action handling
 			for action in plans:
 				if "navigator" in action:
 					result = self.navigator(action.split("(")[1].strip(")")) # [location, object]
 					if isinstance(result, tuple) and len(result) > 0:
 						result = result[0].strip()  # Extract the first element and strip any whitespace
-					# self.get_logger().info(f"Navigator result: {result}, eval: {eval(result)}")
+					self.get_logger().info(f"Navigator result: {result}, eval: {eval(result)}") if TEXT_DEBUG else self.nothing()
 					tx = String()
 					tx.data = eval(result)[1] 
 					self.llm2navigator.publish(tx)
-					while self.navigation_action_done is None:
+					while self.navigation_action_status is None:
 						rclpy.spin_once(self, timeout_sec=0.1)
 						continue
 				elif "arm" in action:
-					if self.navigation_action_done is False:
+					if self.navigation_action_status is False:
 						self.get_logger().info(f"Navigation failed, skipping arm action.")
 						continue
 					result = self.arm(action.split("(")[1].strip(")")) # Object: String
 					if isinstance(result, tuple) and len(result) > 0:
 						result = result[0].strip()  # Extract the first element and strip any whitespace
-					# self.get_logger().info(f"Arm result: {result},  eval: {eval(result)[0]}")
+					self.get_logger().info(f"Arm result: {result},  eval: {eval(result)[0]}") if TEXT_DEBUG else self.nothing()
 					tx = String()
 					tx.data = eval(result)[0]
 					self.llm2arm.publish(tx)
@@ -175,9 +175,20 @@ class Master(Node):
 					self.get_logger().info(f"Unknown action: {action}")
 				# self.get_logger().info(f"tx: {tx.data}")
 
-			self.response2socket(plans)
-			self.get_logger().info(f'All executed.')
-			self.navigation_action_done = None
+			# Response / Display
+			if self.navigation_action_status == True:
+				response_text = 'All executed.'
+			elif self.navigation_action_status == False:
+				response_text = 'Navigation Fail.'
+			else:
+				response_text = 'Unknown, please check logs.'
+			self.response2socket(response_text)
+			self.get_logger().info(response_text)
+			self.navigation_action_status = None
+
+	def nothing():
+		""" do noting """
+		pass
 
 def main():
     rclpy.init()

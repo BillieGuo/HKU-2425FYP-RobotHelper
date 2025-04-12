@@ -96,6 +96,8 @@ class Navigator(Node):
         while rclpy.ok():
             rclpy.spin_once(self)
             if not self.prompt:
+                self.prompt = None
+                self.explore = None
                 continue
             # a prompt comes in with the name of the object to be searched and reached
             # 0. get current pose
@@ -133,12 +135,13 @@ class Navigator(Node):
                     break
             if self.prompt is None:
                 continue
+            self.get_logger().info(f"Location Reached!")
             
             # 3. after reaching the location, conduct exploration
             self.request_exploration(self.prompt)
             self.get_logger().info(f"Exploration started.")
             exploration_start_time = time.time()
-            exploration_timeout = 60  # Timeout in seconds
+            exploration_timeout = 30  # Timeout in seconds
             while self.explore is None:
                 rclpy.spin_once(self)
                 if time.time() - exploration_start_time > exploration_timeout:
@@ -151,12 +154,10 @@ class Navigator(Node):
                 continue
             self.get_logger().info(f"Exploration done.")
             # 4. send the exploration result to the LLM
-            result = True if self.prompt is None else False
-            self.send_navigation_result(result)
+            result = False if self.prompt is None else True
+            self.send_navigation_result(result)            
             
-            self.prompt = None
-            self.explore = None
-            self.get_logger().info(f"Reset.")
+            self.clean_up()
     
     def send_goal_pos(self):
         try:
@@ -187,6 +188,13 @@ class Navigator(Node):
     def get_pose(self):
         return self.odom
 
+    def clean_up(self):
+        self.prompt = None
+        self.explore = None
+        self.request_exploration("stop")
+        self.nav2navigator.cancelTask()
+        self.get_logger().info(f"Reset.")
+        
 def main():
     rclpy.init()
     node = Navigator()

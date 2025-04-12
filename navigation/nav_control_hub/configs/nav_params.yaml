@@ -112,7 +112,7 @@ bt_navigator_navigate_to_pose_rclcpp_node:
 controller_server:
   ros__parameters:
     use_sim_time: False
-    controller_frequency: 20.0
+    controller_frequency: 40.0
     min_x_velocity_threshold: 0.05
     min_y_velocity_threshold: 0.5
     min_theta_velocity_threshold: 0.1
@@ -139,15 +139,16 @@ controller_server:
       yaw_goal_tolerance: 0.5  # Tightened to reduce rotational oscillations
 
     FollowPath:
-      # plugin: "nav2_rotation_shim_controller::RotationShimController"
-      # primary_controller: "dwb_core::DWBLocalPlanner"
-      # angular_dist_threshold: 0.785
-      # forward_sampling_distance: 0.5
-      # angular_disengage_threshold: 0.3925
-      # rotate_to_heading_angular_vel: 0.2
-      # max_angular_accel: 0.05
-      # simulate_ahead_time: 1.0
-      # rotate_to_goal_heading: false
+      plugin: "nav2_rotation_shim_controller::RotationShimController"
+      # primary_controller: "dwb_core::DWBLocalPlanner" 
+      primary_controller: "nav2_mppi_controller::MPPIController"
+      angular_dist_threshold: 0.785
+      forward_sampling_distance: 0.5
+      angular_disengage_threshold: 0.3925
+      rotate_to_heading_angular_vel: 0.2
+      max_angular_accel: 0.05
+      simulate_ahead_time: 1.0
+      rotate_to_goal_heading: false
 
       # # DWB parameters
       # plugin: "dwb_core::DWBLocalPlanner"
@@ -194,7 +195,7 @@ controller_server:
       # MPPI
       plugin: "nav2_mppi_controller::MPPIController"
       time_steps: 56
-      model_dt: 0.05
+      model_dt: 0.025
       batch_size: 2000
       vx_std: 0.2
       vy_std: 0.2
@@ -257,7 +258,7 @@ controller_server:
         enabled: true
         cost_power: 1
         cost_weight: 3.81
-        critical_cost: 300.0
+        critical_cost: 20000.0
         consider_footprint: true
         collision_cost: 1000000.0
         near_goal_distance: 1.0
@@ -265,11 +266,11 @@ controller_server:
       PathAlignCritic:
         enabled: true
         cost_power: 1
-        cost_weight: 10.0  # Reduced to minimize overcorrection
+        cost_weight: 5.0  # Reduced to minimize overcorrection
         max_path_occupancy_ratio: 0.1
         trajectory_point_step: 4
         threshold_to_consider: 0.5
-        offset_from_furthest: 10  # Reduced to avoid excessive alignment corrections
+        offset_from_furthest: 5  # Reduced to avoid excessive alignment corrections
         use_path_orientations: false
       PathFollowCritic:
         enabled: true
@@ -290,10 +291,10 @@ controller_server:
       #   cost_power: 1
       #   cost_weight: 35.0
       #   deadband_velocities: [0.05, 0.05, 0.05]
-      # TwirlingCritic:
-      #   enabled: true
-      #   twirling_cost_power: 1
-      #   twirling_cost_weight: 10.0
+      TwirlingCritic:
+        enabled: true
+        twirling_cost_power: 1
+        twirling_cost_weight: 100.0
 
 
 local_costmap:
