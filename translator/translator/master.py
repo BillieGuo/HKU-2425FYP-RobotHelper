@@ -9,7 +9,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy
 from translator.utils import get_config, safe_to_run
 from translator.LMP import LMP
 
-TEXT_DEBUG = False
+TEXT_DEBUG = True
 
 class Master(Node):
 	def __init__(self):

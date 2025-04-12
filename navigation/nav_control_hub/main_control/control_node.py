@@ -103,15 +103,14 @@ class Navigator(Node):
             self.get_logger().info(f"Current pose: {current_pose}")
             
             # 1. pass the object to semantic map to get the location
-            self.target_location = self.requset_location(self.prompt)        
+            self.target_location = self.odom # hard-coded for now
+            # self.target_location = self.requset_location(self.prompt)        
             if self.target_location is None:
                 self.get_logger().warning(f'No result from Semantic Map, Skip this action.')
                 self.prompt = None
                 self.explore = False
                 self.send_navigation_result(False)
                 continue
-                
-            # self.target_location = self.odom # hard-coded for now
             self.get_logger().info(f"Location received: {self.target_location}")
             
             # 2. send the location to the navigator Nav2

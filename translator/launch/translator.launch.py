@@ -5,7 +5,7 @@ def generate_launch_description():
     return LaunchDescription([
         Node(
             package='translator',
-            executable='socket_server',
+            executable='socket',
             name='socket_server',
             output='screen'
         ),
