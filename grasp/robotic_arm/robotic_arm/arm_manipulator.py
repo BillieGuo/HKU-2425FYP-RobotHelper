@@ -12,7 +12,7 @@ import numpy as np
 from interbotix_xs_modules.xs_robot.arm import InterbotixManipulatorXS
 from interbotix_common_modules.common_robot.robot import robot_shutdown, robot_startup
 from enum import Enum
-from tf_transformations import quaternion_from_matrix, quaternion_matrix, rotation_matrix, inverse_matrix, translation_matrix
+from tf_transformations import quaternion_from_matrix, quaternion_matrix, rotation_matrix, inverse_matrix, translation_matrix, euler_from_matrix
 from ament_index_python.packages import get_package_share_directory
 import tkinter as tk
 import threading
@@ -139,9 +139,9 @@ class ArmManipulator(Node):
         try:
             self.root.mainloop()  # Start the tkinter event loop
         except KeyboardInterrupt:
-            terminate(self)
+            terminate(self) 
 
-    def on_key_press(self, event):
+    def on_key_press(self, event:tk.Event):
         self.handle_action(event.keysym)
 
     def handle_action(self, key):
@@ -225,7 +225,7 @@ class ArmManipulator(Node):
         # Use the best grasp pose
         target_pose = self.grasp_poses[0]
         best_score = self.scores[0]
-        self.get_logger().info(f"Grasp poses received. Using the best grasp pose: {target_pose} with score {best_score}")
+        self.get_logger().info(f"Grasp poses received. Using the best grasp pose with score {best_score}")
         # Calculate and publish the static tf from target to base
         t2c_matrix = self.pose_to_matrix(target_pose)
         c2g_matrix = self.c2g_matrix
@@ -242,7 +242,7 @@ class ArmManipulator(Node):
         grasp_pose_tf_msg = TransformStamped()
         grasp_pose_tf_msg.header.stamp = self.get_clock().now().to_msg()
         grasp_pose_tf_msg.header.frame_id = "vx300s/base_link"
-        grasp_pose_tf_msg.child_frame_id = "grasp_pose"
+        grasp_pose_tf_msg.child_frame_id = "last_grasp_pose"
         grasp_pose_tf_msg.transform.translation.x = t2b_matrix[0][3]
         grasp_pose_tf_msg.transform.translation.y = t2b_matrix[1][3]
         grasp_pose_tf_msg.transform.translation.z = t2b_matrix[2][3]
@@ -253,6 +253,10 @@ class ArmManipulator(Node):
         grasp_pose_tf_msg.transform.rotation.w = w
         self.grasp_pose_tf_broadcaster.sendTransform(grasp_pose_tf_msg)
         self.get_logger().info("Broadcast the grasp pose")
+        # Convert target pose to xyz rpy format and log it
+        xyz = t2b_matrix[:3, 3]
+        rpy = euler_from_matrix(t2b_matrix)
+        self.get_logger().info(f"Target pose in xyz: {xyz}, rpy: {rpy}")
         # Move the arm to the grasp pose
         # Use two waypoints to "insert" the gripper towards the object
         waypoint_matrix = t2b_matrix @ translation_matrix([-0.03, 0, 0])
