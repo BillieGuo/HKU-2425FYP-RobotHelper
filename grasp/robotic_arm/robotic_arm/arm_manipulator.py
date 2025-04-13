@@ -43,12 +43,15 @@ class ArmManipulator(Node):
         self.initialize_communication()
 
         # Arm-specific configurations
-        self.EXPLORE_VIEW_JOINTS = [0.0, -1.8, 1.36, 0.0, 0.7, 0.0]
+        self.ZERO_SHOULDER, self.ZERO_ELBOW, self.ZERO_WRIST_ANGLE = -1.8, 1.36, 0.7
+        self.EXPLORE_VIEW_JOINTS = [0.0, self.ZERO_SHOULDER, self.ZERO_ELBOW, 0.0, self.ZERO_WRIST_ANGLE, 0.0]
+        self.SHOULDER_LIMIT = -0.785
         self.CAPTURE_VIEW_JOINTS = [0.0, -0.785, 0.785, 0, 0.785, 0]
         self.is_torque_on = True
         self.torque_on()
         self.grasp()
         self.go_to_explore_pose()
+        self.get_clock().sleep_for(Duration(seconds=6.0))
         self.state = ArmState.IDLE
         self.get_logger().info("ArmManipulator initialized")
 
@@ -60,7 +63,7 @@ class ArmManipulator(Node):
         self.start_tkinter_thread()
 
         # Broadcast the static camera transform after initialization
-        self.create_timer(0.1, self.try_broadcast_camera_tf)
+        self.camera_tf_timer = self.create_timer(0.1, self.try_broadcast_camera_tf)
 
     def initialize_communication(self):
         # Create publishers
@@ -70,6 +73,7 @@ class ArmManipulator(Node):
         # Create subscribers
         self.prompt_sub = self.create_subscription(String, "/grasp_prompt", self.prompt_callback, 10)
         self.grasp_sub = self.create_subscription(GraspResponse, "/robotic_arm/grasp_response", self.grasp_callback, 10)
+        self.view_angle_sub = self.create_subscription(String, "/robotic_arm/view_angle", self.view_angle_callback, 10)
 
         # tf
         self.tf_buffer = Buffer()
@@ -187,6 +191,15 @@ class ArmManipulator(Node):
         c2g_tf.transform.translation.z = self.c2g_matrix[2][3]
         c2g_tf.transform.rotation.x, c2g_tf.transform.rotation.y, c2g_tf.transform.rotation.z, c2g_tf.transform.rotation.w = quaternion_from_matrix(self.c2g_matrix)
         self.c2g_tf_broadcaster.sendTransform(c2g_tf)
+
+    def try_broadcast_camera_tf(self):
+        try:
+            self.broadcast_camera_tf()
+        except Exception as e:
+            self.get_logger().error(f"Error in broadcast_camera_tf:\n{e}")
+        finally:
+            self.camera_tf_timer.cancel()
+            self.camera_tf_timer = None
 
     def broadcast_camera_tf(self):
         # the D435i_color_optical_frame is the same as camera_frame
@@ -337,13 +350,24 @@ class ArmManipulator(Node):
         else:
             self.torque_on()
 
-    def try_broadcast_camera_tf(self):
-        try:
-            self.broadcast_camera_tf()
-        except Exception as e:
-            self.get_logger().error(f"Error in broadcast_camera_tf:\n{e}")
+    def update_ee_pose(self):
+        ee_matrix = self.robot.arm.get_ee_pose()
+        xyz = ee_matrix[:3, 3]
+        rpy = euler_from_matrix(ee_matrix)
+        self.ee_xyz_rpy = [xyz[0], xyz[1], xyz[2], rpy[0], rpy[1], rpy[2]]
 
-    def handle_state(self):
+    def view_angle_callback(self, msg: String):
+        if self.state != ArmState.IDLE:
+            self.get_logger().warn(f'Arm is not in IDLE state, ignore the view angle "{msg.data}" ')
+            return
+        _, shoulder, elbow, _, wrist_angle, _ = self.robot.arm.get_joint_positions()
+        command = msg.data
+        # if command == "up":
+
+        # elif command == "down":
+        # elif command == "stop":
+
+    def handle_state(self): # Not in use
         if self.state == ArmState.IDLE:
             self.handle_idle()
         elif self.state == ArmState.CAPTURING:
