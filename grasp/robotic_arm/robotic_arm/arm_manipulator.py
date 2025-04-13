@@ -309,7 +309,7 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.gripper.grasp(delay=delay)
 
     def release(self, delay = 0.0):
-        self.gripper.set_pressure(0.0)
+        self.gripper.set_pressure(self.grasp_pressure)
         self.gripper.release(delay=delay)
 
     def torque_off(self):
