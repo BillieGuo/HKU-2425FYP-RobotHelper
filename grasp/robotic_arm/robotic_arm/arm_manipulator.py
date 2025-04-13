@@ -1,4 +1,6 @@
 import rclpy
+from rclpy.node import Node
+from rclpy.duration import Duration
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from tf2_ros import Buffer, TransformListener
 from geometry_msgs.msg import TransformStamped, Pose, Transform
@@ -13,6 +15,7 @@ from enum import Enum
 from tf_transformations import quaternion_from_matrix, quaternion_matrix, rotation_matrix, inverse_matrix, translation_matrix
 from ament_index_python.packages import get_package_share_directory
 import tkinter as tk
+import threading
 
 package_share_directory = get_package_share_directory("robotic_arm")
 
@@ -21,43 +24,67 @@ class ArmState(Enum):
     CAPTURING = 2
     GRASPING = 3
 
-class ArmManipulator(InterbotixManipulatorXS):
+class ArmManipulator(Node):
     def __init__(self):
-        super().__init__(
+        super().__init__('arm_manipulator_node')
+        
+        # Initialize the robotic arm
+        self.robot = InterbotixManipulatorXS(
             robot_model='vx300s',
             group_name='arm',
             gripper_name='gripper',
+            gripper_pressure=1.0,
             gripper_pressure_lower_limit=60,
             gripper_pressure_upper_limit=200
         )
-        self.node = self.core.get_node()
-        # tf
-        self.c2g_tf_broadcaster = StaticTransformBroadcaster(self.node)
-        self.camera_tf_broadcaster = StaticTransformBroadcaster(self.node)
-        self.grasp_pose_tf_broadcaster = StaticTransformBroadcaster(self.node)
-        self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self.node)
-        self.broadcast_c2g_tf()
+        robot_startup()
 
-        # ros
-        self.create_publisher()
-        self.create_subscriber()
+        # Initialize publishers, subscribers, tf broadcaster and listener
+        self.initialize_communication()
 
-        # arm
-        self.grasp_pressure = 1.0
+        # Arm-specific configurations
         self.EXPLORE_VIEW_JOINTS = [0.0, -1.8, 1.36, 0.0, 0.7, 0.0]
         self.CAPTURE_VIEW_JOINTS = [0.0, -0.785, 0.785, 0, 0.785, 0]
         self.is_torque_on = True
         self.torque_on()
+        self.grasp()
+        self.go_to_explore_pose()
         self.state = ArmState.IDLE
-        self.node.get_logger().info("ArmManipulator initialized")
+        self.get_logger().info("ArmManipulator initialized")
 
-        # GUI for key listening
+        # GUI-related attributes
         self.key_pressed = None
-        self.create_gui()
+        self.gui_ready = threading.Event()
 
-    def create_gui(self):
-        # Create a tkinter window for key listening
+        # Schedule the Tkinter thread to start
+        self.start_tkinter_thread()
+
+        # Broadcast the static camera transform after initialization
+        self.create_timer(0.1, self.try_broadcast_camera_tf)
+
+    def initialize_communication(self):
+        # Create publishers
+        self.grasp_request_pub = self.create_publisher(String, "/text_prompt", 10)
+        self.grasp_again_pub = self.create_publisher(String, "/grasp_prompt", 10)
+
+        # Create subscribers
+        self.prompt_sub = self.create_subscription(String, "/grasp_prompt", self.prompt_callback, 10)
+        self.grasp_sub = self.create_subscription(GraspResponse, "/robotic_arm/grasp_response", self.grasp_callback, 10)
+
+        # tf
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
+        self.c2g_tf_broadcaster = StaticTransformBroadcaster(self)
+        self.camera_tf_broadcaster = StaticTransformBroadcaster(self)
+        self.grasp_pose_tf_broadcaster = StaticTransformBroadcaster(self)
+        self.broadcast_c2g_tf()
+
+    def start_tkinter_thread(self):
+        # Start the Tkinter GUI in a separate thread
+        threading.Thread(target=self.run_tkinter, daemon=True).start()
+
+    def run_tkinter(self):
+        # Create the GUI in this thread
         self.root = tk.Tk()
         self.root.attributes("-topmost", True)  # Keep the window on top
         self.root.title("Arm Manipulator Key Listener")
@@ -106,6 +133,14 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.warn_label = tk.Label(self.root, text="Do not close this window or node will die.", font=("Arial", 10), fg="red")
         self.warn_label.pack(pady=10)
 
+        # Notify that the GUI is ready
+        self.gui_ready.set()
+
+        try:
+            self.root.mainloop()  # Start the tkinter event loop
+        except KeyboardInterrupt:
+            terminate(self)
+
     def on_key_press(self, event):
         self.handle_action(event.keysym)
 
@@ -113,38 +148,38 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.key_pressed = key
         self.status_label.config(text=f"Last key pressed: {self.key_pressed}")  # Update the status label
         if key == 'q':
-            self.node.get_logger().info("Quitting...")
+            self.get_logger().info("Quitting...")
             self.go_to_sleep_pose()
-            self.root.destroy()  # Close the tkinter window
-            rclpy.shutdown()
+            terminate(self)
+
         elif key == 's':
-            self.node.get_logger().info("Go to sleep pose")
+            self.get_logger().info("Go to sleep pose")
             self.go_to_sleep_pose()
         elif key == 'c':
-            self.node.get_logger().info("Go to capture pose")
+            self.get_logger().info("Go to capture pose")
             self.go_to_capture_pose()
         elif key == 'e':
-            self.node.get_logger().info("Go to explore pose")
+            self.get_logger().info("Go to explore pose")
             self.go_to_explore_pose()
         elif key == 'r':
-            self.node.get_logger().info("Force release")
+            self.get_logger().info("Force release")
             self.release()
         elif key == 'g':
-            self.node.get_logger().info("Force grasp")
+            self.get_logger().info("Force grasp")
             self.grasp()
         elif key == 't':
-            self.node.get_logger().info("Torque toggle")
+            self.get_logger().info("Torque toggle")
             self.torque_toggle()
         # Reset the key_pressed after handling
         self.key_pressed = None
 
     def broadcast_c2g_tf(self):
-        tf_file_path =  os.path.join(package_share_directory, "config", "transform_camera2gripper.yaml")
+        tf_file_path = os.path.join(package_share_directory, "config", "transform_camera2gripper.yaml")
         with open(tf_file_path, "r") as file:
             c2g_file = yaml.safe_load(file)
         self.c2g_matrix = np.array(c2g_file["camera2gripper"])
         c2g_tf = TransformStamped()
-        c2g_tf.header.stamp = self.node.get_clock().now().to_msg()
+        c2g_tf.header.stamp = self.get_clock().now().to_msg()
         c2g_tf.header.frame_id = "vx300s/ee_gripper_link"
         c2g_tf.child_frame_id = "camera_frame"
         c2g_tf.transform.translation.x = self.c2g_matrix[0][3]
@@ -160,40 +195,27 @@ class ArmManipulator(InterbotixManipulatorXS):
             "D435i_link",
             rclpy.time.Time()
         )
-        tf.header.stamp = self.node.get_clock().now().to_msg()
+        tf.header.stamp = self.get_clock().now().to_msg()
         tf.header.frame_id = "camera_frame"
         self.camera_tf_broadcaster.sendTransform(tf)
 
-    def create_publisher(self):
-        # Publish for the grasp request node
-        self.grasp_request_pub = self.node.create_publisher(String, "/text_prompt", 10)
-        # Publish the /grasp_prompt to request the grasp pose again
-        self.grasp_again_pub = self.node.create_publisher(String, "/grasp_prompt", 10)
-
-    def create_subscriber(self):
-        # translator's prompt
-        self.prompt_sub = self.node.create_subscription(String, "/grasp_prompt", self.prompt_callback, 10)
-        # grasp poses results
-        self.grasp_sub = self.node.create_subscription(GraspResponse, "/robotic_arm/grasp_response", self.grasp_callback, 10)
-
-    def prompt_callback(self, msg):
+    def prompt_callback(self, msg: String):
         if self.state != ArmState.IDLE:
-            self.node.get_logger().warn(f'Arm is not in IDLE state, ignore the prompt "{msg.data}" ')
+            self.get_logger().warn(f'Arm is not in IDLE state, ignore the prompt "{msg.data}" ')
             return
-        
         # Receive the prompt from the LLM translator or regenerate the grasp pose
         self.text_prompt = msg.data
         self.state = ArmState.CAPTURING
-        self.node.get_logger().info(f'Received prompt: "{self.text_prompt}". Go to capture pose and release the gripper.')
-        self.go_to_capture_pose()
+        self.get_logger().info(f'Received prompt: "{self.text_prompt}". Go to capture pose and release the gripper.')
         self.release()
-        # Wait for the arm to be stable to capture the image
-        self.node.create_timer(5.0, lambda: self.grasp_request_pub.publish(msg))
-        self.node.create_timer(5.0, lambda: self.node.get_logger().info(f'Requesting grasp pose for "{self.text_prompt}", waiting for the response...'))
-        
+        self.go_to_capture_pose()
+        self.get_clock().sleep_for(Duration(seconds=6.0))
+        self.grasp_request_pub.publish(msg)
+        self.get_logger().info(f'Requesting grasp pose for "{self.text_prompt}", waiting for the response...')
+
     def grasp_callback(self, msg:GraspResponse):
         if self.state != ArmState.CAPTURING:
-            self.node.get_logger().warn(f'Arm is not in CAPTURING state, ignore the grasp response')
+            self.get_logger().warn(f'Arm is not in CAPTURING state, ignore the grasp response')
             return
         # Receive the grasp pose from the server
         self.state = ArmState.GRASPING
@@ -203,7 +225,7 @@ class ArmManipulator(InterbotixManipulatorXS):
         # Use the best grasp pose
         target_pose = self.grasp_poses[0]
         best_score = self.scores[0]
-        self.node.get_logger().info(f"Grasp poses received. Using the best grasp pose: {target_pose} with score {best_score}")
+        self.get_logger().info(f"Grasp poses received. Using the best grasp pose: {target_pose} with score {best_score}")
         # Calculate and publish the static tf from target to base
         t2c_matrix = self.pose_to_matrix(target_pose)
         c2g_matrix = self.c2g_matrix
@@ -214,11 +236,11 @@ class ArmManipulator(InterbotixManipulatorXS):
         )
         g2b_tf = g2b_tf.transform
         g2b_matrix = self.pose_to_matrix(g2b_tf)
-        # g2b_matrix = self.arm.get_ee_pose()
+        # g2b_matrix = self.robot.arm.get_ee_pose()
         t2b_matrix = g2b_matrix @ c2g_matrix  @ t2c_matrix
         t2b_matrix = self.calibrate(t2b_matrix)
         grasp_pose_tf_msg = TransformStamped()
-        grasp_pose_tf_msg.header.stamp = self.node.get_clock().now().to_msg()
+        grasp_pose_tf_msg.header.stamp = self.get_clock().now().to_msg()
         grasp_pose_tf_msg.header.frame_id = "vx300s/base_link"
         grasp_pose_tf_msg.child_frame_id = "grasp_pose"
         grasp_pose_tf_msg.transform.translation.x = t2b_matrix[0][3]
@@ -230,33 +252,35 @@ class ArmManipulator(InterbotixManipulatorXS):
         grasp_pose_tf_msg.transform.rotation.z = z
         grasp_pose_tf_msg.transform.rotation.w = w
         self.grasp_pose_tf_broadcaster.sendTransform(grasp_pose_tf_msg)
-        self.node.get_logger().info("Broadcast the grasp pose")
+        self.get_logger().info("Broadcast the grasp pose")
         # Move the arm to the grasp pose
         # Use two waypoints to "insert" the gripper towards the object
         waypoint_matrix = t2b_matrix @ translation_matrix([-0.03, 0, 0])
-        self.arm.set_ee_pose_matrix(waypoint_matrix, moving_time=5.0, blocking=True)
+        self.robot.arm.set_ee_pose_matrix(waypoint_matrix, moving_time=5.0, blocking=True)
         waypoint_matrix_2 = t2b_matrix @ translation_matrix([0.015, 0, 0])
-        self.arm.set_ee_pose_matrix(waypoint_matrix_2, moving_time=2.0, blocking=True, custom_guess=self.arm.get_joint_positions())
+        self.robot.arm.set_ee_pose_matrix(waypoint_matrix_2, moving_time=2.0, blocking=True, custom_guess=self.robot.arm.get_joint_positions())
         self.grasp()
         # Wait for the finger closing and move back to capture pose
-        self.node.create_timer(5.0, lambda: self.go_to_capture_pose(blocking=True))
+        self.get_clock().sleep_for(Duration(seconds=4.0))
+        self.go_to_capture_pose()
+        self.get_clock().sleep_for(Duration(seconds=5.0))
         if self.is_success():
             self.go_to_explore_pose()
         else:
             # If grasping failed, publish a prompt and grasp again
             self.grasp_again_pub.publish(String(data=self.text_prompt))
-            self.node.get_logger().info(f"Publish the prompt to grasp again: {self.text_prompt}")
+            self.get_logger().info(f"Publish the prompt to grasp again: {self.text_prompt}")
         self.state=ArmState.IDLE
     
     def is_success(self):
         # Check if the gripper is closed completely. If so, no object is grasped.
         self.finger_close_position = 0.021
-        finger_position = self.gripper.get_finger_position()
-        self.node.get_logger().info(f"Finger position: {finger_position}")
+        finger_position = self.robot.gripper.get_finger_position()
+        self.get_logger().info(f"Finger position: {finger_position}")
         if finger_position < self.finger_close_position:
-            self.node.get_logger().info("No object grasped or the object is too thin")
+            self.get_logger().info("No object grasped or the object is too thin")
             return False
-        self.node.get_logger().info("Object grasped successfully")
+        self.get_logger().info("Object grasped successfully")
         return True
 
     def calibrate(self, matrix):
@@ -281,28 +305,26 @@ class ArmManipulator(InterbotixManipulatorXS):
         return matrix
 
     def go_to_capture_pose(self):
-        self.arm.set_joint_positions(self.CAPTURE_VIEW_JOINTS, moving_time=5.0, blocking=False)
+        self.robot.arm.set_joint_positions(self.CAPTURE_VIEW_JOINTS, moving_time=5.0, blocking=False)
 
     def go_to_explore_pose(self):
-        self.arm.set_joint_positions(self.EXPLORE_VIEW_JOINTS, moving_time=5.0, blocking=False)
+        self.robot.arm.set_joint_positions(self.EXPLORE_VIEW_JOINTS, moving_time=5.0, blocking=False)
 
     def go_to_sleep_pose(self):
-        self.arm.go_to_sleep_pose(moving_time=5.0, blocking=False)
+        self.robot.arm.go_to_sleep_pose(moving_time=5.0, blocking=False)
 
-    def grasp(self):
-        self.gripper.set_pressure(self.grasp_pressure)
-        self.gripper.grasp(delay=0.0)
+    def grasp(self, delay=0.0):
+        self.robot.gripper.grasp(delay=delay)
 
-    def release(self):
-        self.gripper.set_pressure(self.grasp_pressure)
-        self.gripper.release(delay=0.0)
+    def release(self, delay=0.0):
+        self.robot.gripper.release(delay=delay)
 
     def torque_off(self):
-        self.core.robot_torque_enable(cmd_type='group', name='arm', enable=False)
+        self.robot.core.robot_torque_enable(cmd_type='group', name='all', enable=False)
         self.is_torque_on = False
 
     def torque_on(self):
-        self.core.robot_torque_enable(cmd_type='group', name='arm', enable=True)
+        self.robot.core.robot_torque_enable(cmd_type='group', name='all', enable=True)
         self.is_torque_on = True
     
     def torque_toggle(self):
@@ -311,18 +333,11 @@ class ArmManipulator(InterbotixManipulatorXS):
         else:
             self.torque_on()
 
-    def run(self):
+    def try_broadcast_camera_tf(self):
         try:
             self.broadcast_camera_tf()
         except Exception as e:
-            self.node.get_logger().error(f"Error in broadcast_camera_tf:\n{e}")
-
-        try:
-            self.grasp()
-            self.go_to_explore_pose()
-            self.root.mainloop()  # Start the tkinter event loop
-        except KeyboardInterrupt:
-            robot_shutdown()
+            self.get_logger().error(f"Error in broadcast_camera_tf:\n{e}")
 
     def handle_state(self):
         if self.state == ArmState.IDLE:
@@ -348,8 +363,15 @@ class ArmManipulator(InterbotixManipulatorXS):
 
 def main(args=None):
     rclpy.init(args=args)
-    robotic_arm = ArmManipulator()
-    robotic_arm.run()
+    node = ArmManipulator()
+    rclpy.spin(node)
+    terminate(node)
+    rclpy.shutdown()
+
+def terminate(node: ArmManipulator):
+    node.root.destroy()
+    robot_shutdown()
+    node.destroy_node()
 
 if __name__ == "__main__":
     main()
