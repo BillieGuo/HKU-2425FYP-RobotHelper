@@ -45,12 +45,10 @@ class ArmManipulator(InterbotixManipulatorXS):
 
         # arm
         self.grasp_pressure = 1.0
-        self.grasp()
         self.EXPLORE_VIEW_JOINTS = [0.0, -1.8, 1.36, 0.0, 0.7, 0.0]
         self.CAPTURE_VIEW_JOINTS = [0.0, -0.785, 0.785, 0, 0.785, 0]
         self.is_torque_on = True
         self.torque_on()
-        self.go_to_explore_pose()
         self.state = ArmState.IDLE
         self.node.get_logger().info("ArmManipulator initialized")
 
@@ -191,9 +189,12 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.release()
         # Wait for the arm to be stable to capture the image
         self.node.create_timer(5.0, lambda: self.grasp_request_pub.publish(msg))
-        self.node.create_timer(5.0, lambda: self.node.get_logger().info("Requesting grasp pose, waiting for the response..."))
+        self.node.create_timer(5.0, lambda: self.node.get_logger().info(f'Requesting grasp pose for "{self.text_prompt}", waiting for the response...'))
         
     def grasp_callback(self, msg:GraspResponse):
+        if self.state != ArmState.CAPTURING:
+            self.node.get_logger().warn(f'Arm is not in CAPTURING state, ignore the grasp response')
+            return
         # Receive the grasp pose from the server
         self.state = ArmState.GRASPING
         self.num_grasp_poses = msg.num_grasp_poses
@@ -201,7 +202,8 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.scores = msg.scores
         # Use the best grasp pose
         target_pose = self.grasp_poses[0]
-        self.node.get_logger().info(f"Grasp poses received. Using the best grasp pose: {target_pose} with score {self.scores[0]}")
+        best_score = self.scores[0]
+        self.node.get_logger().info(f"Grasp poses received. Using the best grasp pose: {target_pose} with score {best_score}")
         # Calculate and publish the static tf from target to base
         t2c_matrix = self.pose_to_matrix(target_pose)
         c2g_matrix = self.c2g_matrix
@@ -237,16 +239,25 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.arm.set_ee_pose_matrix(waypoint_matrix_2, moving_time=2.0, blocking=True, custom_guess=self.arm.get_joint_positions())
         self.grasp()
         # Wait for the finger closing and move back to capture pose
-        self.node.create_timer(5.0, lambda: self.go_to_capture_pose())
+        self.node.create_timer(5.0, lambda: self.go_to_capture_pose(blocking=True))
         if self.is_success():
             self.go_to_explore_pose()
-
-
-        # # If grasping failed, publish a prompt and grasp again
-        # if not self.is_success():
-        #     self.grasp_again_pub.publish(String(data=self.text_prompt))
-        #     self.node.get_logger().info(f"Publish the prompt to grasp again: {self.text_prompt}")
+        else:
+            # If grasping failed, publish a prompt and grasp again
+            self.grasp_again_pub.publish(String(data=self.text_prompt))
+            self.node.get_logger().info(f"Publish the prompt to grasp again: {self.text_prompt}")
         self.state=ArmState.IDLE
+    
+    def is_success(self):
+        # Check if the gripper is closed completely. If so, no object is grasped.
+        self.finger_close_position = 0.021
+        finger_position = self.gripper.get_finger_position()
+        self.node.get_logger().info(f"Finger position: {finger_position}")
+        if finger_position < self.finger_close_position:
+            self.node.get_logger().info("No object grasped or the object is too thin")
+            return False
+        self.node.get_logger().info("Object grasped successfully")
+        return True
 
     def calibrate(self, matrix):
         # Calibrate the orientation of the grasp pose
@@ -283,7 +294,7 @@ class ArmManipulator(InterbotixManipulatorXS):
         self.gripper.grasp(delay=0.0)
 
     def release(self):
-        self.gripper.set_pressure(0.0)
+        self.gripper.set_pressure(self.grasp_pressure)
         self.gripper.release(delay=0.0)
 
     def torque_off(self):
@@ -300,17 +311,6 @@ class ArmManipulator(InterbotixManipulatorXS):
         else:
             self.torque_on()
 
-    def is_success(self):
-        # Check if the gripper is closed completely. If so, no object is grasped.
-        self.finger_close_position = 0.021
-        finger_position = self.gripper.get_finger_position()
-        self.node.get_logger().info(f"Finger position: {finger_position}")
-        if finger_position < self.finger_close_position:
-            self.node.get_logger().info("No object grasped or the object is too thin")
-            return False
-        self.node.get_logger().info("Object grasped successfully")
-        return True
-
     def run(self):
         try:
             self.broadcast_camera_tf()
@@ -318,7 +318,8 @@ class ArmManipulator(InterbotixManipulatorXS):
             self.node.get_logger().error(f"Error in broadcast_camera_tf:\n{e}")
 
         try:
-            robot_startup()
+            self.grasp()
+            self.go_to_explore_pose()
             self.root.mainloop()  # Start the tkinter event loop
         except KeyboardInterrupt:
             robot_shutdown()
