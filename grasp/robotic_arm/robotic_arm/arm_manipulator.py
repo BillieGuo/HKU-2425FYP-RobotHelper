@@ -45,7 +45,8 @@ class ArmManipulator(Node):
         # Arm-specific configurations
         self.ZERO_SHOULDER, self.ZERO_ELBOW, self.ZERO_WRIST_ANGLE = -1.8, 1.36, 0.7
         self.EXPLORE_VIEW_JOINTS = [0.0, self.ZERO_SHOULDER, self.ZERO_ELBOW, 0.0, self.ZERO_WRIST_ANGLE, 0.0]
-        self.SHOULDER_LIMIT = -0.785
+        self.SHOULDER_LIMIT, self.WRIST_LIMIT = -0.785, 1.225
+        self.DELTA_ANGLE = 0.03
         self.CAPTURE_VIEW_JOINTS = [0.0, -0.785, 0.785, 0, 0.785, 0]
         self.is_torque_on = True
         self.torque_on()
@@ -362,10 +363,22 @@ class ArmManipulator(Node):
             return
         _, shoulder, elbow, _, wrist_angle, _ = self.robot.arm.get_joint_positions()
         command = msg.data
-        # if command == "up":
-
-        # elif command == "down":
-        # elif command == "stop":
+        if command == "up":
+            if wrist_angle > self.ZERO_WRIST_ANGLE:
+                self.robot.arm.set_single_joint_position("wrist_angle", wrist_angle - self.DELTA_ANGLE, moving_time=1, blocking=False)
+            else:
+                self.robot.arm.set_single_joint_position("shoulder", shoulder + self.DELTA_ANGLE, moving_time=1, blocking=False)
+                self.robot.arm.set_single_joint_position("elbow", elbow - self.DELTA_ANGLE, moving_time=1, blocking=False)
+        elif command == "down":
+            if shoulder > self.ZERO_SHOULDER:
+                self.robot.arm.set_single_joint_position("shoulder", shoulder - self.DELTA_ANGLE, moving_time=1, blocking=False)
+                self.robot.arm.set_single_joint_position("elbow", elbow + self.DELTA_ANGLE, moving_time=1, blocking=False)
+            else:
+                self.robot.arm.set_single_joint_position("wrist_angle", wrist_angle + self.DELTA_ANGLE, moving_time=1, blocking=False)
+        elif command == "stop":
+            self.robot.arm.set_single_joint_position("shoulder", shoulder, moving_time=1, blocking=False)
+            self.robot.arm.set_single_joint_position("elbow", elbow, moving_time=1, blocking=False)
+            self.robot.arm.set_single_joint_position("wrist_angle", wrist_angle, moving_time=1, blocking=False)
 
     def handle_state(self): # Not in use
         if self.state == ArmState.IDLE:
