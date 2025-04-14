@@ -40,6 +40,11 @@ class Yolo(Node):
             'yolo2ser',
             10)
         
+        self.view_angle_pub = self.create_publisher(
+            String,
+            'robotic_arm/view_angle',
+            10)
+        
         rgbd_topic = f"/{camera_namespace}/{camera_name}/rgbd"
         self.rs_rgbd_sub = self.create_subscription(
             RGBD,
@@ -250,7 +255,7 @@ class Yolo(Node):
         center_y = bbox[1]
 
         # Check if the object is in the center of the image
-        if abs(center_x - CAMERA_WIDTH / 2) < CAMERA_THRESHOLD:
+        if abs(center_x - CAMERA_WIDTH / 2) < CAMERA_THRESHOLD and abs(center_y - CAMERA_HEIGHT/2) < CAMERA_THRESHOLD:
             # Object is in the center, return true, stop moving
             return True
         # Object is not in the center, return false, and rotate accordingly
@@ -258,6 +263,13 @@ class Yolo(Node):
             self.pub_chassis_control("CCW")
         elif center_x > CAMERA_WIDTH / 2:
             self.pub_chassis_control("CW")
+        msg = String()
+        if center_y < CAMERA_HEIGHT / 2:
+            msg.data = "up"
+            self.view_angle_pub.publish(msg=msg)
+        elif center_y > CAMERA_HEIGHT / 2:
+            msg.data = "down"
+            self.view_angle_pub.publish(msg=msg)
 
         return False
 

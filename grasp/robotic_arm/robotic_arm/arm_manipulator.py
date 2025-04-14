@@ -6,7 +6,7 @@ from tf2_ros import Buffer, TransformListener
 from geometry_msgs.msg import TransformStamped, Pose, Transform
 from std_msgs.msg import String
 from custom_msgs.msg import GraspResponse
-import os
+import os, sys
 import yaml
 import numpy as np
 from interbotix_xs_modules.xs_robot.arm import InterbotixManipulatorXS
@@ -45,8 +45,8 @@ class ArmManipulator(Node):
         # Arm-specific configurations
         self.ZERO_SHOULDER, self.ZERO_ELBOW, self.ZERO_WRIST_ANGLE = -1.8, 1.36, 0.7
         self.EXPLORE_VIEW_JOINTS = [0.0, self.ZERO_SHOULDER, self.ZERO_ELBOW, 0.0, self.ZERO_WRIST_ANGLE, 0.0]
-        self.SHOULDER_LIMIT, self.WRIST_LIMIT = -0.785, 1.225
-        self.DELTA_ANGLE = 0.03
+        self.SHOULDER_LIMIT, self.WRIST_LIMIT = -0.785, 1.125
+        self.DELTA_ANGLE = 0.001
         self.CAPTURE_VIEW_JOINTS = [0.0, -0.785, 0.785, 0, 0.785, 0]
         self.is_torque_on = True
         self.torque_on()
@@ -129,7 +129,7 @@ class ArmManipulator(Node):
                 font=("Arial", 12), 
                 width=10,
                 height=2,
-                command=lambda k=key: self.handle_action(k.lower())
+                command=lambda k=key: (self.handle_action(k.lower()), os._exit(0) if k.lower() == 'q' else None)
             )
             button.pack(side=tk.RIGHT)
 
@@ -140,11 +140,7 @@ class ArmManipulator(Node):
 
         # Notify that the GUI is ready
         self.gui_ready.set()
-
-        try:
-            self.root.mainloop()  # Start the tkinter event loop
-        except KeyboardInterrupt:
-            terminate(self) 
+        self.root.mainloop()  # Start the tkinter event loop
 
     def on_key_press(self, event:tk.Event):
         self.handle_action(event.keysym)
@@ -155,8 +151,8 @@ class ArmManipulator(Node):
         if key == 'q':
             self.get_logger().info("Quitting...")
             self.go_to_sleep_pose()
-            terminate(self)
-
+            robot_shutdown()
+            os._exit(0)  # Forcefully exit the program
         elif key == 's':
             self.get_logger().info("Go to sleep pose")
             self.go_to_sleep_pose()
@@ -361,24 +357,26 @@ class ArmManipulator(Node):
         if self.state != ArmState.IDLE:
             self.get_logger().warn(f'Arm is not in IDLE state, ignore the view angle "{msg.data}" ')
             return
-        _, shoulder, elbow, _, wrist_angle, _ = self.robot.arm.get_joint_positions()
+        # _, shoulder, elbow, _, wrist_angle, _ = self.robot.arm.get_joint_positions()
+        _, shoulder, elbow, _, wrist_angle, _ = self.robot.arm.get_joint_commands()
         command = msg.data
+        moving_time = 0.2
         if command == "up":
+            if shoulder > self.SHOULDER_LIMIT:
+                return
             if wrist_angle > self.ZERO_WRIST_ANGLE:
-                self.robot.arm.set_single_joint_position("wrist_angle", wrist_angle - self.DELTA_ANGLE, moving_time=1, blocking=False)
+                self.robot.arm.set_single_joint_position("wrist_angle", wrist_angle - self.DELTA_ANGLE, moving_time=moving_time, blocking=False)
             else:
-                self.robot.arm.set_single_joint_position("shoulder", shoulder + self.DELTA_ANGLE, moving_time=1, blocking=False)
-                self.robot.arm.set_single_joint_position("elbow", elbow - self.DELTA_ANGLE, moving_time=1, blocking=False)
+                self.robot.arm.set_single_joint_position("shoulder", shoulder + self.DELTA_ANGLE, moving_time=moving_time, blocking=False)
+                self.robot.arm.set_single_joint_position("elbow", elbow - self.DELTA_ANGLE, moving_time=moving_time, blocking=False)
         elif command == "down":
+            if wrist_angle > self.WRIST_LIMIT:
+                return
             if shoulder > self.ZERO_SHOULDER:
-                self.robot.arm.set_single_joint_position("shoulder", shoulder - self.DELTA_ANGLE, moving_time=1, blocking=False)
-                self.robot.arm.set_single_joint_position("elbow", elbow + self.DELTA_ANGLE, moving_time=1, blocking=False)
+                self.robot.arm.set_single_joint_position("shoulder", shoulder - self.DELTA_ANGLE, moving_time=moving_time, blocking=False)
+                self.robot.arm.set_single_joint_position("elbow", elbow + self.DELTA_ANGLE, moving_time=moving_time, blocking=False)
             else:
-                self.robot.arm.set_single_joint_position("wrist_angle", wrist_angle + self.DELTA_ANGLE, moving_time=1, blocking=False)
-        elif command == "stop":
-            self.robot.arm.set_single_joint_position("shoulder", shoulder, moving_time=1, blocking=False)
-            self.robot.arm.set_single_joint_position("elbow", elbow, moving_time=1, blocking=False)
-            self.robot.arm.set_single_joint_position("wrist_angle", wrist_angle, moving_time=1, blocking=False)
+                self.robot.arm.set_single_joint_position("wrist_angle", wrist_angle + self.DELTA_ANGLE, moving_time=moving_time, blocking=False)
 
     def handle_state(self): # Not in use
         if self.state == ArmState.IDLE:
@@ -406,13 +404,7 @@ def main(args=None):
     rclpy.init(args=args)
     node = ArmManipulator()
     rclpy.spin(node)
-    terminate(node)
     rclpy.shutdown()
-
-def terminate(node: ArmManipulator):
-    node.root.destroy()
-    robot_shutdown()
-    node.destroy_node()
 
 if __name__ == "__main__":
     main()
