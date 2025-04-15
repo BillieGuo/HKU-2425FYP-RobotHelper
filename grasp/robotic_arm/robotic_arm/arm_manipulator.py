@@ -4,7 +4,7 @@ from rclpy.duration import Duration
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from tf2_ros import Buffer, TransformListener
 from geometry_msgs.msg import TransformStamped, Pose, Transform
-from std_msgs.msg import String
+from std_msgs.msg import String, Bool
 from custom_msgs.msg import GraspResponse
 import os, sys
 import yaml
@@ -54,6 +54,7 @@ class ArmManipulator(Node):
         self.go_to_explore_pose()
         self.get_clock().sleep_for(Duration(seconds=6.0))
         self.state = ArmState.IDLE
+        self.try_number = 0
         self.get_logger().info("ArmManipulator initialized")
 
         # GUI-related attributes
@@ -70,6 +71,7 @@ class ArmManipulator(Node):
         # Create publishers
         self.grasp_request_pub = self.create_publisher(String, "/text_prompt", 10)
         self.grasp_again_pub = self.create_publisher(String, "/grasp_prompt", 10)
+        self.feedback_pub = self.create_publisher(Bool, "/robotic_arm/feedback", 10)
 
         # Create subscribers
         self.prompt_sub = self.create_subscription(String, "/grasp_prompt", self.prompt_callback, 10)
@@ -232,6 +234,12 @@ class ArmManipulator(Node):
         self.num_grasp_poses = msg.num_grasp_poses
         self.grasp_poses = msg.grasp_poses
         self.scores = msg.scores
+        # If the message is empty, fail the task.
+        if self.num_grasp_poses == 0:
+            self.get_logger().info("No feasible grasp pose found. Grasping failed.")
+            self.go_to_explore_pose()
+            self.try_number = 0
+            self.feedback_pub.publish(Bool(data=False))
         # Use the best grasp pose
         target_pose = self.grasp_poses[0]
         best_score = self.scores[0]
@@ -278,12 +286,21 @@ class ArmManipulator(Node):
         self.get_clock().sleep_for(Duration(seconds=4.0))
         self.go_to_capture_pose()
         self.get_clock().sleep_for(Duration(seconds=5.0))
+        self.try_number += 1
+        self.get_logger().info(f"Try number: {self.try_number}")
         if self.is_success():
             self.go_to_explore_pose()
-        else:
+            self.try_number = 0
+            self.feedback_pub.publish(Bool(data=True))
+        elif self.try_number < 3:
             # If grasping failed, publish a prompt and grasp again
             self.grasp_again_pub.publish(String(data=self.text_prompt))
             self.get_logger().info(f"Publish the prompt to grasp again: {self.text_prompt}")
+        else:
+            self.go_to_explore_pose()
+            self.try_number = 0
+            self.feedback_pub.publish(Bool(data=False))
+            self.get_logger().info("Grasping failed.")
         self.state=ArmState.IDLE
     
     def is_success(self):
