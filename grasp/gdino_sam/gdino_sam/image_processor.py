@@ -80,10 +80,12 @@ class ImageProcessor(Node):
             self.get_logger().info("Start the inference\n")
             mask, absolute_boxes, logits, phrases = self.gdino_sam.infer(self.rgb_image, self.depth_image, self.prompt)
             if mask is None:
-                self.get_logger().info("gdino_sam failed\n")
+                self.get_logger().info("Object detection or segmentation failed. Publishing empty message.\n")
                 self.prompt = None
                 self.rgb_image = None
                 self.depth_image = None
+                rgbd_msg = RGBD()
+                self.cropped_rgbd_pub.publish(rgbd_msg)
                 return
             annotated_image = self.annotate_image(self.rgb_image, mask, absolute_boxes, logits, phrases)
             cropped_color, cropped_depth = self.crop_image(self.rgb_image, self.depth_image, mask)

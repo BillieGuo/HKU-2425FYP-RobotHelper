@@ -6,5 +6,5 @@ paths:
   record_path: "assets/image_process_record/"
 
 thresholds:
-  box_threshold: 0.35
-  text_threshold: 0.25
+  box_threshold: 0.7
+  text_threshold: 0.7
