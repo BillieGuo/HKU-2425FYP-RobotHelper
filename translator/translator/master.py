@@ -19,6 +19,7 @@ class Master(Node):
 		self.arm = None 
 		self.socket_update = False
 		self.navigation_action_status = None
+		self.location_when_receive_cmd = None
 		self.model_init()
   
 		qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
@@ -62,6 +63,9 @@ class Master(Node):
 	def navigator_response_callback(self, msg):
 		if msg.data:
 			self.get_logger().info(f'navigator response: {msg.data}')
+		if "[" in msg.data and "]" in msg.data:
+			self.location_when_receive_cmd = eval(msg.data)
+		else:
 			self.navigation_action_status = True if msg.data == 'True' else False
 		pass
 
@@ -147,16 +151,30 @@ class Master(Node):
 			# plans = [f'navigator({input_prompt})', f'arm({input_prompt})'] # hard-coded for now
 			if TEXT_DEBUG:			
 				self.get_logger().info(f'Plans: {plans}')
-			# # list of action handling
+			
+			self.llm2navigator.publish("request_current_location")
+			while self.navigation_action_status is None:
+				rclpy.spin_once(self, timeout_sec=0.1)
+				continue
+			# list of action handling
 			for action in plans:
 				if "navigator" in action:
 					result = self.navigator(action.split("(")[1].strip(")")) # [location, object]
 					if isinstance(result, tuple) and len(result) > 0:
 						result = result[0].strip()  # Extract the first element and strip any whitespace
+						result = eval(result)
+						if result[0] == 'user location':
+							if self.location_when_receive_cmd is not None:
+								final = self.location_when_receive_cmd
+							else:
+								self.get_logger().info(f"User location not found, skipping navigator action.")
+								continue
+						else:
+							final = result[1]
 					if TEXT_DEBUG:
 						self.get_logger().info(f"Navigator result: {result}, eval: {eval(result)}")
 					tx = String()
-					tx.data = eval(result)[1] 
+					tx.data = final
 					self.llm2navigator.publish(tx)
 					while self.navigation_action_status is None:
 						rclpy.spin_once(self, timeout_sec=0.1)
@@ -188,6 +206,7 @@ class Master(Node):
 			self.response2socket(response_text)
 			self.get_logger().info(response_text)
 			self.navigation_action_status = None
+			self.location_when_receive_cmd = None
 
 	def nothing(self):
 		""" do noting """

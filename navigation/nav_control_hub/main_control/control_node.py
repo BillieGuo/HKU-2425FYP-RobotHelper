@@ -64,7 +64,11 @@ class Navigator(Node):
         
     def llm_request_callback(self, msg):
         if msg.data:
-            self.prompt = msg.data
+            if "[" in msg.data and "]" in msg.data:
+                self.prompt = "user location"
+                self.target_location = map(float, msg.data.strip('[]').split(','))
+            else:
+                self.prompt = msg.data
         
     def yolo_response_callback(self, msg):
         self.explore = True if msg.data == "Success" else False
@@ -143,11 +147,16 @@ class Navigator(Node):
             current_pose = self.get_pose()
             self.get_logger().info(f"Current pose: {current_pose}")
             
+            if self.prompt == 'request_current_location':
+                self.send_navigation_result(self.odom)
+                self.prompt = None
+                continue
             # 1. pass the object to semantic map to get the location
             # self.target_location = self.odom # hard-coded for now
-            self.target_location = self.requset_location(self.prompt)        
+            if self.prompt != "user location":
+                self.target_location = self.requset_location(self.prompt)        
             if self.target_location is None:
-                self.get_logger().warning(f'No result from Semantic Map, Skip this action.')
+                self.get_logger().warning(f'No Target Location, Skip this action.')
                 self.prompt = None
                 self.explore = False
                 self.send_navigation_result(False)

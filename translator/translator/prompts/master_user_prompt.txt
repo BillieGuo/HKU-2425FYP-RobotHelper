@@ -5,6 +5,7 @@ import numpy as np
 Query: “Bring me the soldering iron from the workbench.”
 # navigator(Reasoning: Move to the workbench to access the soldering iron.)
 # arm(Reasoning: Grab the tool securely for safe transport.) 
+# navigator(Reasoning: Move to the user’s location to deliver the soldering iron.)
 ###
 
 
@@ -12,5 +13,6 @@ Query: “Transfer the sample vial from the centrifuge to the microscope.”
 # navigator(Reasoning: Position the robot at the centrifuge to retrieve the vial.) 
 # arm(Reasoning: Secure the vial to avoid spills during transport.)
 # navigator(Reasoning: Move to the microscope for sample analysis.)
+# navigator(Reasoning: Move to the user’s location)
 ###
 

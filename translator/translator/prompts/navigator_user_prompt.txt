@@ -25,3 +25,6 @@ import numpy as np
 # Reasoning: Dispose of the waste in the bin.
 ["bin", "waste"]
 ###
+
+# Reasoning: Move to the user’s location to deliver the water bottle.
+["user location", "water bottle"]
