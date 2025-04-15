@@ -35,6 +35,8 @@ class GraspResponder(Node):
             self.sock.close()
 
     def grasp_response_callback(self, msg):
+        if self.connection is None:
+            return
         try:
             serialized_msg = serialize_message(msg)
             data_length = len(serialized_msg)

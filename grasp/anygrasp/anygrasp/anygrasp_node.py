@@ -11,7 +11,7 @@ from custom_msgs.msg import GraspResponse
 from geometry_msgs.msg import Pose
 import yaml
 from datetime import datetime
-from scipy.spatial.transform import Rotation as R  # Add this import
+from scipy.spatial.transform import Rotation as R
 from sensor_msgs.msg import PointCloud2
 from geometry_msgs.msg import PoseStamped, PoseArray
 import sensor_msgs_py.point_cloud2 as pc2
@@ -65,7 +65,12 @@ class AnyGraspNode(Node):
         self.timer = self.create_timer(1.0, self.timer_callback) # Keeps the visualization alive 
         self.get_logger().info("The anygrasp_node initialized successfully, listening to /cropped_rgbd\n")
 
-    def rgbd_callback(self, msg):
+    def rgbd_callback(self, msg:RGBD):
+        # Check if the RGBD message is empty
+        if msg.header.stamp.sec == 0:
+            self.get_logger().info("Received empty RGBD message. Publish empty grasp response. Keep listening to /cropped_rgbd\n")
+            self.grasp_pub.publish(GraspResponse())
+            return
         rgb_image = self.bridge.imgmsg_to_cv2(msg.rgb, "rgb8")
         depth_image = self.bridge.imgmsg_to_cv2(msg.depth, "16UC1")
 
@@ -85,7 +90,8 @@ class AnyGraspNode(Node):
                 self.publish_pcd(cloud, grasp_response)
             self.get_logger().info("Keep listening to /cropped_rgbd\n")
         else:
-            self.get_logger().info("No grasp poses detected. Do not publish any grasp response. Keep listening to /cropped_rgbd\n")
+            self.get_logger().info("No grasp poses detected. Publish empty grasp response. Keep listening to /cropped_rgbd\n")
+            self.grasp_pub.publish(GraspResponse())
 
     def generate_grasp_poses(self, rgb_image, depth_image, camera_info):
         points, colors, lims = self.prepare_data(rgb_image, depth_image, camera_info)
