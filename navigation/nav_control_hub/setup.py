@@ -25,6 +25,7 @@ setup(
             'control = main_control.control_node:main',
             'explore = main_control.yolo_explore:main',
             'socket = main_control.socket_client:main',
+            'fakeSemantic = main_control.fake_semantic_map:main'
         ],
     },
 )

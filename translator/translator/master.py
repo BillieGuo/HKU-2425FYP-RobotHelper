@@ -9,7 +9,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy
 from translator.utils import get_config, safe_to_run
 from translator.LMP import LMP
 
-TEXT_DEBUG = True
+TEXT_DEBUG = False
 
 class Master(Node):
 	def __init__(self):
@@ -145,14 +145,16 @@ class Master(Node):
 			
 			plans = self.get_plan(input_prompt)
 			# plans = [f'navigator({input_prompt})', f'arm({input_prompt})'] # hard-coded for now
-			self.get_logger().info(f'Plans: {plans}') if TEXT_DEBUG else self.nothing()
+			if TEXT_DEBUG:			
+				self.get_logger().info(f'Plans: {plans}')
 			# # list of action handling
 			for action in plans:
 				if "navigator" in action:
 					result = self.navigator(action.split("(")[1].strip(")")) # [location, object]
 					if isinstance(result, tuple) and len(result) > 0:
 						result = result[0].strip()  # Extract the first element and strip any whitespace
-					self.get_logger().info(f"Navigator result: {result}, eval: {eval(result)}") if TEXT_DEBUG else self.nothing()
+					if TEXT_DEBUG:
+						self.get_logger().info(f"Navigator result: {result}, eval: {eval(result)}")
 					tx = String()
 					tx.data = eval(result)[1] 
 					self.llm2navigator.publish(tx)
@@ -166,7 +168,8 @@ class Master(Node):
 					result = self.arm(action.split("(")[1].strip(")")) # Object: String
 					if isinstance(result, tuple) and len(result) > 0:
 						result = result[0].strip()  # Extract the first element and strip any whitespace
-					self.get_logger().info(f"Arm result: {result},  eval: {eval(result)[0]}") if TEXT_DEBUG else self.nothing()
+					if TEXT_DEBUG:
+						self.get_logger().info(f"Arm result: {result},  eval: {eval(result)[0]}")
 					tx = String()
 					tx.data = eval(result)[0]
 					self.llm2arm.publish(tx)
@@ -186,7 +189,7 @@ class Master(Node):
 			self.get_logger().info(response_text)
 			self.navigation_action_status = None
 
-	def nothing():
+	def nothing(self):
 		""" do noting """
 		pass
 

@@ -1,6 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped, Point
+from visualization_msgs.msg import Marker
 from nav_msgs.msg import Odometry
 from std_msgs.msg import String
 from tf_transformations import quaternion_from_euler, euler_from_quaternion
@@ -10,6 +11,7 @@ import time
 import math
 from custom_msgs.srv import SemanticQuery
 
+VISUALIZATION = False
 
 class Navigator(Node):
     def __init__(self):
@@ -30,6 +32,7 @@ class Navigator(Node):
         self.navigator2socket_pub = self.create_publisher(String, 'navigator2socket', qos_profile)
         self.socket2navigator_sub = self.create_subscription(String, 'socket2navigator', self.socket_response_callback, qos_profile)
         # self.timer = self.create_timer(1.0, self.handel_request)
+        self.marker_pub = self.create_publisher(Marker, 'visualization_marker', 10)
 
         self.sem_map_client = self.create_client(SemanticQuery, 'semantic_query')
         
@@ -91,6 +94,42 @@ class Navigator(Node):
             self.get_logger().info(f"Received from socket: {msg.data}")
             self.target_location = map(float, msg.data.strip('[]').split(','))
         
+    def display_location_point(self, point):
+        marker = Marker()
+        marker.header.frame_id = "map"  # Frame of reference
+        marker.header.stamp = self.get_clock().now().to_msg()
+        marker.ns = "semantic map object location"
+        marker.id = 0
+        marker.type = Marker.SPHERE  # Marker type (e.g., SPHERE, CUBE, ARROW, etc.)
+        marker.action = Marker.ADD
+
+        # Set the position of the marker
+        marker.pose.position.x = point[0]
+        marker.pose.position.y = point[1]
+        marker.pose.position.z = point[2]
+        marker.pose.orientation.x = 0.0
+        marker.pose.orientation.y = 0.0
+        marker.pose.orientation.z = 0.0
+        marker.pose.orientation.w = 1.0
+
+        # Set the scale of the marker
+        marker.scale.x = 0.2
+        marker.scale.y = 0.2
+        marker.scale.z = 0.2
+
+        # Set the color of the marker
+        marker.color.r = 1.0  # Red
+        marker.color.g = 0.0  # Green
+        marker.color.b = 0.0  # Blue
+        marker.color.a = 1.0  # Alpha (transparency)
+
+        # Set the lifetime of the marker (0 means it stays forever)
+        marker.lifetime.sec = 60
+        marker.lifetime.nanosec = 0
+
+        self.marker_pub.publish(marker)
+        self.get_logger().info("Published marker")
+
     # main function
     def run(self):
         while rclpy.ok():
@@ -105,8 +144,8 @@ class Navigator(Node):
             self.get_logger().info(f"Current pose: {current_pose}")
             
             # 1. pass the object to semantic map to get the location
-            self.target_location = self.odom # hard-coded for now
-            # self.target_location = self.requset_location(self.prompt)        
+            # self.target_location = self.odom # hard-coded for now
+            self.target_location = self.requset_location(self.prompt)        
             if self.target_location is None:
                 self.get_logger().warning(f'No result from Semantic Map, Skip this action.')
                 self.prompt = None
@@ -114,6 +153,8 @@ class Navigator(Node):
                 self.send_navigation_result(False)
                 continue
             self.get_logger().info(f"Location received: {self.target_location}")
+            # visualize the retrieved location of object
+            self.display_location_point(self.target_location) 
             
             # 2. send the location to the navigator Nav2
             self.send_goal_pos()
@@ -181,8 +222,10 @@ class Navigator(Node):
         goal.pose.orientation.z = q[2]
         goal.pose.orientation.w = q[3]
 
-        # self.goal_publisher.publish(goal)
-        self.nav2navigator.goToPose(goal, behavior_tree='Pause Near Goal-Obstacle')
+        # direct post
+        # self.goal_publisher.publish(goal) 
+        # via API
+        self.nav2navigator.goToPose(goal) #, behavior_tree='Pause Near Goal-Obstacle')
         self.get_logger().info(f'Goal pose sent: {goal}')
 
     def get_pose(self):

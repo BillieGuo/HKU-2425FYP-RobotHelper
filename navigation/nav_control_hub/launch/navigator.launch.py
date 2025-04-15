@@ -17,7 +17,11 @@ def generate_launch_description():
     nav_control_hub_dir = os.getcwd()+'/src/HKU-2425FYP-RobotHelper/navigation/nav_control_hub'
     nav_params_path = LaunchConfiguration(
         'nav_params', 
-        default=os.path.join(nav_control_hub_dir, 'configs', 'nav_params.yaml')  # Corrected path
+        default=os.path.join(nav_control_hub_dir, 'configs', 'nav_params.yaml')
+    )
+    slam_params_path = LaunchConfiguration(
+        'slam_params', 
+        default=os.path.join(nav_control_hub_dir, 'configs', 'slam_params.yaml')
     )
 
     fast_lio_launch = IncludeLaunchDescription(
@@ -43,7 +47,8 @@ def generate_launch_description():
             ])
         ),
         launch_arguments={
-            'use_sim_time': 'false'
+            'use_sim_time': 'false',
+            'params_file': slam_params_path,
         }.items()
     )
     
