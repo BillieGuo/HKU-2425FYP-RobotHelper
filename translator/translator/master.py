@@ -20,42 +20,19 @@ class Master(Node):
 		self.socket_update = False
 		self.navigation_action_status = None
 		self.location_when_receive_cmd = None
+		self.arm_action_status = None
 		self.model_init()
   
 		qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.RELIABLE)
-		self.llm2arm = self.create_publisher(
-			String,
-			'grasp_prompt',
-			qos_profile)
-		self.llm2navigator = self.create_publisher(
-			String,
-			'llm2navigator',
-			qos_profile)
-		self.llm2socket = self.create_publisher(
-			String,
-			'llm2socket',
-			qos_profile)
+		self.llm2arm = self.create_publisher(String, 'grasp_prompt', qos_profile)
+		self.llm2navigator = self.create_publisher(String, 'llm2navigator', qos_profile)
+		self.llm2socket = self.create_publisher(String, 'llm2socket', qos_profile)
 
-		self.navigator2llm = self.create_subscription(
-			String,
-			'navigator2llm',
-			self.navigator_response_callback,
-			qos_profile)
-		self.subscriber_master_text = self.create_subscription(
-			String,
-			'text_prompt',
-			self.master_response_callback,
-			10)
-		self.subscriber_master_voice = self.create_subscription(
-			String,
-			'voice_prompt',
-			self.master_response_callback,
-			10)
-		self.socket2llm = self.create_subscription(
-			String,
-			'socket2llm',
-			self.socket_query_callback,
-			10)
+		self.navigator2llm = self.create_subscription(String, 'navigator2llm', self.navigator_response_callback, qos_profile)
+		self.subscriber_master_text = self.create_subscription(String, 'text_prompt', self.master_response_callback, 10)
+		self.subscriber_master_voice = self.create_subscription(String, 'voice_prompt', self.master_response_callback, 10)
+		self.socket2llm = self.create_subscription(String, 'socket2llm', self.socket_query_callback, 10)
+		self.arm2llm = self.create_subscription(String, '/robotic_arm/feedback', self.arm_response_callback, 10)
   
 		self.get_logger().info("Master node initialized.")
 		pass
@@ -83,6 +60,11 @@ class Master(Node):
 		msg = String()
 		msg.data = str(response)
 		self.llm2socket.publish(msg)
+        
+	def arm_response_callback(self, msg):
+		if msg.data:
+			self.get_logger().info(f'arm response: {msg.data}')
+			self.arm_action_status = msg.data == True
         
 	def model_init(self):
 		cfg = get_config('translator/configs/llm_config.yaml')['lmps']
@@ -192,21 +174,27 @@ class Master(Node):
 					tx.data = eval(result)[0]
 					self.llm2arm.publish(tx)
 					# wait for arm process to be completed
+					while self.arm_action_status is None:
+						rclpy.spin_once(self, timeout_sec=0.1)
+						continue
 				else:
 					self.get_logger().info(f"Unknown action: {action}")
 				# self.get_logger().info(f"tx: {tx.data}")
 
 			# Response / Display
-			if self.navigation_action_status == True:
+			if self.navigation_action_status == True and self.arm_action_status == True:
 				response_text = 'All executed.'
 			elif self.navigation_action_status == False:
 				response_text = 'Navigation Fail.'
+			elif self.arm_action_status == False:
+				response_text = 'Arm Grasping Fail.'
 			else:
 				response_text = 'Unknown, please check logs.'
 			self.response2socket(response_text)
 			self.get_logger().info(response_text)
 			self.navigation_action_status = None
 			self.location_when_receive_cmd = None
+			self.arm_action_status = None
 
 	def nothing(self):
 		""" do noting """
