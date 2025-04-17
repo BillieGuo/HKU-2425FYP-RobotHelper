@@ -37,7 +37,7 @@ class SocketSender(Node):
         self.depth_image = None
         self.updating_color_image = None
         self.updating_depth_image = None
-        self.socket_setup()
+        # self.socket_setup()
 
         self.camera_frame = camera_frame
         self.world_frame = world_frame
@@ -46,6 +46,7 @@ class SocketSender(Node):
         self.camera_to_world = None
 
         self.latest_image_time = None
+        self.latest_color_time = None
     
     def wait_for_first_images(self):
         while self.updating_color_image is None or self.updating_depth_image is None:
@@ -67,6 +68,7 @@ class SocketSender(Node):
                 to_frame_rel,
                 from_frame_rel,
                 rclpy.time.Time())
+            self.get_logger().info(f"tf___: {t.header.stamp.sec}.{t.header.stamp.nanosec}")
         except TransformException as ex:
             self.get_logger().info(
                 f'Could not transform {to_frame_rel} to {from_frame_rel}: {ex}')
@@ -122,6 +124,7 @@ class SocketSender(Node):
 
     def image_callback(self, msg):
         self.updating_color_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        self.latest_color_time = msg.header.stamp
 
     def depth_callback(self, msg):
         self.updating_depth_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough').astype(np.uint16)
@@ -129,9 +132,11 @@ class SocketSender(Node):
     
     def image_fix(self):
         self.color_image = self.updating_color_image
+        self.get_logger().info(f"color: {self.latest_color_time.sec}.{self.latest_color_time.nanosec}")
     
     def depth_fix(self):
         self.depth_image = self.updating_depth_image
+        self.get_logger().info(f"depth: {self.latest_image_time.sec}.{self.latest_image_time.nanosec}")
 
     def send_color_image(self):
         if self.color_image is not None:
@@ -187,15 +192,14 @@ def main(args=None):
                 rclpy.spin_once(socket_sender, timeout_sec=5.0)
                 socket_sender.depth_fix()
                 socket_sender.image_fix()
-                tf_get = socket_sender.listen_tf_time_align()
+                tf_get = socket_sender.listen_tf()
                 
-            socket_sender.wait_handshake("depth")
-            socket_sender.send_depth_image()
-            socket_sender.wait_handshake("color")
-            socket_sender.send_color_image()
-            socket_sender.wait_handshake("trans")
-            socket_sender.send_transform()
-            time.sleep(0.4)
+            # socket_sender.wait_handshake("depth")
+            # socket_sender.send_depth_image()
+            # socket_sender.wait_handshake("color")
+            # socket_sender.send_color_image()
+            # socket_sender.wait_handshake("trans")
+            # socket_sender.send_transform()
 
     except KeyboardInterrupt:
         pass

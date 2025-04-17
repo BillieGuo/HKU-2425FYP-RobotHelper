@@ -435,7 +435,7 @@ planner_server:
     planner_plugins: ["GridBased"]
     GridBased:
       plugin: "nav2_navfn_planner/NavfnPlanner"
-      tolerance: 1.0
+      tolerance: 2.0
       use_astar: true
       allow_unknown: true
       use_final_approach_orientation: true

@@ -13,7 +13,7 @@ class SemanticQueryClient(Node):
             'semantic_query'
         )
         self.query_point_processor = QueryPointProcessor()
-        self.point_process_strategy = self.query_point_processor.default_strategy
+        self.point_process_strategy = self.query_point_processor.max_of_sim_1_sort_confs
     
     def query_service(self, object_name, threshold=3.1415/6):
         req = SemanticQuery.Request()
@@ -22,18 +22,18 @@ class SemanticQueryClient(Node):
         future = self.sem_map_client.call_async(req)
         rclpy.spin_until_future_complete(self, future)
         try:
-            return future.result().points, future.result().similarities, future.result().corresponding_semantic_service, future.result().labels
+            return future.result().points, future.result().similarities, future.result().corresponding_semantic_service, future.result().labels, future.result().confs
         except Exception as e:
             self.get_logger().error(f'Service call failed: {str(e)}')
             return None, None, None, None
     
     def query_service_and_process(self, object_name, threshold=3.1415/6):
-        points, similarities, service_names, labels = self.query_service(object_name, threshold)
-        if len(points)!=0:
-            self.query_point_processor.update_values(points, similarities, service_names, labels)
-            return self.point_process_strategy()
+        points, similarities, service_names, labels, confs = self.query_service(object_name, threshold)
+        if points == []:
+            return None, None, None, None, None
         else:
-            return None, None, None, None
+            return points[0], similarities[0], service_names[0], labels[0], confs[0]
+
 
 # 使用示例
 def main():
@@ -45,11 +45,11 @@ def main():
         while rclpy.ok():
             object_name = input("Enter object name to query: ")
             similarity = float(input("Enter similarity of query: "))
-            points, similarities, service_names, labels = query_client.query_service_and_process(object_name, similarity)
+            points, similarities, service_names, labels, conf = query_client.query_service_and_process(object_name, similarity)
             if points is not None:
                 print()
                 print(f"Query result for {object_name}:")
-                print(f"Point: {points}, Similarity: {similarities}, Service Name: {service_names}, Label: {labels}")
+                print(f"Point: {points}, Similarity: {similarities}, Service Name: {service_names}, Label: {labels}, Conf: {conf}")
                 print()
             else:
                 print()
