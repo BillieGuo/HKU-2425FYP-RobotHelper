@@ -59,7 +59,7 @@ class ArmManipulator(Node):
 
         # GUI-related attributes
         self.key_pressed = None
-        self.gui_ready = threading.Event()
+        self.gui_update_timer = None  # Timer for periodic GUI updates
 
         # Schedule the Tkinter thread to start
         self.start_tkinter_thread()
@@ -143,13 +143,17 @@ class ArmManipulator(Node):
             button.pack(side=tk.RIGHT)
 
         self.status_label.pack(pady=2)
-        # Add a label to warn not to close the window
-        self.warn_label = tk.Label(self.root, text="Do not close this window or node will die.", font=("Arial", 8), fg="red")
-        self.warn_label.pack(pady=4)
+        # Label showing arm state
+        self.arm_state_label = tk.Label(self.root, text=f"Arm State: {self.state.name}", font=("Arial", 8), fg="green")
+        self.arm_state_label.pack(pady=4)
 
-        # Notify that the GUI is ready
-        self.gui_ready.set()
+        # Start periodic GUI updates
+        self.gui_update_timer = self.create_timer(0.3, self.update_gui)
         self.root.mainloop()  # Start the tkinter event loop
+
+    def update_gui(self):
+        # Update the arm state label periodically
+        self.arm_state_label.config(text=f"Arm State: {self.state.name}")
 
     def on_key_press(self, event:tk.Event):
         self.handle_action(event.keysym)
@@ -157,6 +161,7 @@ class ArmManipulator(Node):
     def handle_action(self, key):
         self.key_pressed = key
         self.status_label.config(text=f"Last key pressed: {self.key_pressed}")  # Update the status label
+        self.arm_state_label.config(text=f"Arm State: {self.state.name}")  # Update the arm state label
         if key == 'q':
             self.get_logger().info("Quitting...")
             self.go_to_sleep_pose()
