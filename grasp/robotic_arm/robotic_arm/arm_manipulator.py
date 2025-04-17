@@ -66,6 +66,7 @@ class ArmManipulator(Node):
 
         # Broadcast the static camera transform after initialization
         self.camera_tf_timer = self.create_timer(0.1, self.try_broadcast_camera_tf)
+        self.capture_timeout_timer = None  # Timer for capturing timeout
 
     def initialize_communication(self):
         # Create publishers
@@ -97,13 +98,19 @@ class ArmManipulator(Node):
         self.root.title("Arm Manipulator Key Listener")
         self.root.bind("<KeyPress>", self.on_key_press)
 
+        # Position the window at the bottom-left corner of the screen
+        screen_height = self.root.winfo_screenheight()
+        x_position = 10  # 10px margin from the left
+        y_position = screen_height - self.root.winfo_reqheight() - 50  # 50px margin from the bottom
+        self.root.geometry(f"+{x_position}+{y_position}")
+
         # Add a label for instructions
-        self.label = tk.Label(self.root, text="Press keys or buttons to control the arm.", font=("Arial", 14))
-        self.label.pack(pady=10)
+        self.label = tk.Label(self.root, text="Press keys or buttons to control the arm.", font=("Arial", 8))
+        self.label.pack(pady=4)
 
         # Add a frame for key descriptions
         self.key_frame = tk.Frame(self.root)
-        self.key_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.key_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=4)
 
         # Add descriptions and buttons
         key_descriptions = [
@@ -116,29 +123,29 @@ class ArmManipulator(Node):
             ("Quit and shutdown the node", "Q"),
         ]
         # Add a status label to show the last key pressed
-        self.status_label = tk.Label(self.root, text="Last key pressed: None", font=("Arial", 12), fg="blue")
+        self.status_label = tk.Label(self.root, text="Last key pressed: None", font=("Arial", 8), fg="blue")
 
         for description, key in key_descriptions:
             frame = tk.Frame(self.key_frame)
-            frame.pack(fill=tk.X, padx=5, pady=5)
+            frame.pack(fill=tk.X, padx=5, pady=2)
             # Add description label
-            label = tk.Label(frame, text=description, font=("Arial", 12), anchor="w")
+            label = tk.Label(frame, text=description, font=("Arial", 8), anchor="w")
             label.pack(side=tk.LEFT, fill=tk.X, expand=True)
             # Add button for the action
             button = tk.Button(
                 frame, 
                 text=key, 
-                font=("Arial", 12), 
-                width=10,
+                font=("Arial", 10), 
+                width=7,
                 height=2,
                 command=lambda k=key: (self.handle_action(k.lower()), os._exit(0) if k.lower() == 'q' else None)
             )
             button.pack(side=tk.RIGHT)
 
-        self.status_label.pack(pady=10)
+        self.status_label.pack(pady=2)
         # Add a label to warn not to close the window
-        self.warn_label = tk.Label(self.root, text="Do not close this window or node will die.", font=("Arial", 10), fg="red")
-        self.warn_label.pack(pady=10)
+        self.warn_label = tk.Label(self.root, text="Do not close this window or node will die.", font=("Arial", 8), fg="red")
+        self.warn_label.pack(pady=4)
 
         # Notify that the GUI is ready
         self.gui_ready.set()
@@ -215,7 +222,8 @@ class ArmManipulator(Node):
         if self.state != ArmState.IDLE:
             self.get_logger().warn(f'Arm is not in IDLE state, ignore the prompt "{msg.data}" ')
             return
-        # How to make sure the view_angle is done?
+        # Set moving time
+        self.robot.arm.set_trajectory_time(moving_time=5)
         # Receive the prompt from the LLM translator or regenerate the grasp pose
         self.text_prompt = msg.data
         self.state = ArmState.CAPTURING
@@ -225,6 +233,19 @@ class ArmManipulator(Node):
         self.get_clock().sleep_for(Duration(seconds=6.0))
         self.grasp_request_pub.publish(msg)
         self.get_logger().info(f'Requesting grasp pose for "{self.text_prompt}", waiting for the response...')
+        
+        # Set a timer for timeout handling
+        if self.capture_timeout_timer:
+            self.capture_timeout_timer.cancel()
+        self.capture_timeout_timer = self.create_timer(10.0, self.handle_capture_timeout)
+
+    def handle_capture_timeout(self):
+        if self.state == ArmState.CAPTURING:
+            self.get_logger().warn("Timeout waiting for grasp pose response. Returning to IDLE state.")
+            self.state = ArmState.IDLE
+        if self.capture_timeout_timer:
+            self.capture_timeout_timer.cancel()
+            self.capture_timeout_timer = None
 
     def grasp_callback(self, msg:GraspResponse):
         if self.state != ArmState.CAPTURING:
@@ -232,6 +253,9 @@ class ArmManipulator(Node):
             return
         # Receive the grasp pose from the server
         self.state = ArmState.GRASPING
+        if self.capture_timeout_timer:
+            self.capture_timeout_timer.cancel()
+            self.capture_timeout_timer = None
         self.num_grasp_poses = msg.num_grasp_poses
         self.grasp_poses = msg.grasp_poses
         self.scores = msg.scores
@@ -402,46 +426,6 @@ class ArmManipulator(Node):
                 joint_commands[4] = wrist_angle + self.DELTA_ANGLE
                 
         self.robot.arm.set_joint_positions(joint_commands, moving_time=moving_time, blocking=False)
-        # if command == "up":
-        #     if shoulder > self.SHOULDER_LIMIT:
-        #         self.get_logger().warn(f'Arm is at the shoulder limit, cannot move up')
-        #         return
-        #     if wrist_angle > self.ZERO_WRIST_ANGLE:
-        #         self.robot.arm.set_single_joint_position("wrist_angle", wrist_angle - self.DELTA_ANGLE, moving_time=moving_time, blocking=False)
-        #     else:
-        #         self.robot.arm.set_single_joint_position("shoulder", shoulder + self.DELTA_ANGLE, moving_time=moving_time, blocking=False)
-        #         self.robot.arm.set_single_joint_position("elbow", elbow - self.DELTA_ANGLE, moving_time=moving_time, blocking=False)
-        # elif command == "down":
-        #     if wrist_angle > self.WRIST_LIMIT:
-        #         self.get_logger().warn(f'Arm is at the wrist limit, cannot move down')
-        #         return
-        #     if shoulder > self.ZERO_SHOULDER:
-        #         self.robot.arm.set_single_joint_position("shoulder", shoulder - self.DELTA_ANGLE, moving_time=moving_time, blocking=False)
-        #         self.robot.arm.set_single_joint_position("elbow", elbow + self.DELTA_ANGLE, moving_time=moving_time, blocking=False)
-        #     else:
-        #         self.robot.arm.set_single_joint_position("wrist_angle", wrist_angle + self.DELTA_ANGLE, moving_time=moving_time, blocking=False)
-
-    def handle_state(self): # Not in use
-        if self.state == ArmState.IDLE:
-            self.handle_idle()
-        elif self.state == ArmState.CAPTURING:
-            self.handle_capture()
-        elif self.state == ArmState.GRASPING:
-            self.handle_grasp()
-
-    def handle_idle(self):
-        # Idle logic
-        pass
-
-    def handle_capture(self):
-        # Capturing logic
-        # Wait for a specific command to transition to the next state
-        pass
-
-    def handle_grasp(self):
-        # Grasping logic
-        # Move the arm and the gripper to grasp an object
-        pass
 
 def main(args=None):
     rclpy.init(args=args)
