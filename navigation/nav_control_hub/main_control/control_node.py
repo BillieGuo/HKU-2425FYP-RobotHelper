@@ -66,7 +66,7 @@ class Navigator(Node):
         if msg.data:
             if "[" in msg.data and "]" in msg.data:
                 self.prompt = "user location"
-                self.target_location = map(float, msg.data.strip('[]').split(','))
+                self.target_location = eval(msg.data)
             else:
                 self.prompt = msg.data
         
@@ -76,7 +76,7 @@ class Navigator(Node):
             
     def requset_location(self, target):
         self.get_logger().info(f"Requesting location of {target}")
-        target_locations, _, _, _ = self.query_service(target, 0.5)
+        target_locations, _, _, _ = self.query_service(target, 0.2)
         if not target_locations:
             return None
         return [target_locations[0].x, target_locations[0].y, target_locations[0].z]
@@ -128,7 +128,7 @@ class Navigator(Node):
         marker.color.a = 1.0  # Alpha (transparency)
 
         # Set the lifetime of the marker (0 means it stays forever)
-        marker.lifetime.sec = 60
+        marker.lifetime.sec = 0
         marker.lifetime.nanosec = 0
 
         self.marker_pub.publish(marker)
@@ -186,12 +186,15 @@ class Navigator(Node):
             if self.prompt is None:
                 continue
             self.get_logger().info(f"Location Reached!")
-            
+            if self.prompt == "user location":
+                self.send_navigation_result(True)   
+                self.clean_up()
+                continue
             # 3. after reaching the location, conduct exploration
             self.request_exploration(self.prompt)
             self.get_logger().info(f"Exploration started.")
             exploration_start_time = time.time()
-            exploration_timeout = 30  # Timeout in seconds
+            exploration_timeout = 60  # Timeout in seconds
             while self.explore is None:
                 rclpy.spin_once(self)
                 if time.time() - exploration_start_time > exploration_timeout:

@@ -215,6 +215,7 @@ class ArmManipulator(Node):
         if self.state != ArmState.IDLE:
             self.get_logger().warn(f'Arm is not in IDLE state, ignore the prompt "{msg.data}" ')
             return
+        # How to make sure the view_angle is done?
         # Receive the prompt from the LLM translator or regenerate the grasp pose
         self.text_prompt = msg.data
         self.state = ArmState.CAPTURING
@@ -240,6 +241,8 @@ class ArmManipulator(Node):
             self.go_to_explore_pose()
             self.try_number = 0
             self.feedback_pub.publish(Bool(data=False))
+            self.state = ArmState.IDLE
+            return
         # Use the best grasp pose
         target_pose = self.grasp_poses[0]
         best_score = self.scores[0]
@@ -374,26 +377,49 @@ class ArmManipulator(Node):
         if self.state != ArmState.IDLE:
             self.get_logger().warn(f'Arm is not in IDLE state, ignore the view angle "{msg.data}" ')
             return
-        # _, shoulder, elbow, _, wrist_angle, _ = self.robot.arm.get_joint_positions()
-        _, shoulder, elbow, _, wrist_angle, _ = self.robot.arm.get_joint_commands()
         command = msg.data
+        joint_commands = self.robot.arm.get_joint_commands()
+        _, shoulder, elbow, _, wrist_angle, _ = joint_commands
         moving_time = 0.2
+        self.get_logger().info(f'Received view angle command: "{command}"')
         if command == "up":
             if shoulder > self.SHOULDER_LIMIT:
+                self.get_logger().warn(f'Arm is at the shoulder limit, cannot move up')
                 return
             if wrist_angle > self.ZERO_WRIST_ANGLE:
-                self.robot.arm.set_single_joint_position("wrist_angle", wrist_angle - self.DELTA_ANGLE, moving_time=moving_time, blocking=False)
+                joint_commands[4] = wrist_angle - self.DELTA_ANGLE
             else:
-                self.robot.arm.set_single_joint_position("shoulder", shoulder + self.DELTA_ANGLE, moving_time=moving_time, blocking=False)
-                self.robot.arm.set_single_joint_position("elbow", elbow - self.DELTA_ANGLE, moving_time=moving_time, blocking=False)
+                joint_commands[1] = shoulder + self.DELTA_ANGLE
+                joint_commands[2] = elbow - self.DELTA_ANGLE
         elif command == "down":
             if wrist_angle > self.WRIST_LIMIT:
+                self.get_logger().warn(f'Arm is at the wrist limit, cannot move down')
                 return
             if shoulder > self.ZERO_SHOULDER:
-                self.robot.arm.set_single_joint_position("shoulder", shoulder - self.DELTA_ANGLE, moving_time=moving_time, blocking=False)
-                self.robot.arm.set_single_joint_position("elbow", elbow + self.DELTA_ANGLE, moving_time=moving_time, blocking=False)
+                joint_commands[1] = shoulder - self.DELTA_ANGLE
+                joint_commands[2] = elbow + self.DELTA_ANGLE
             else:
-                self.robot.arm.set_single_joint_position("wrist_angle", wrist_angle + self.DELTA_ANGLE, moving_time=moving_time, blocking=False)
+                joint_commands[4] = wrist_angle + self.DELTA_ANGLE
+                
+        self.robot.arm.set_joint_positions(joint_commands, moving_time=moving_time, blocking=False)
+        # if command == "up":
+        #     if shoulder > self.SHOULDER_LIMIT:
+        #         self.get_logger().warn(f'Arm is at the shoulder limit, cannot move up')
+        #         return
+        #     if wrist_angle > self.ZERO_WRIST_ANGLE:
+        #         self.robot.arm.set_single_joint_position("wrist_angle", wrist_angle - self.DELTA_ANGLE, moving_time=moving_time, blocking=False)
+        #     else:
+        #         self.robot.arm.set_single_joint_position("shoulder", shoulder + self.DELTA_ANGLE, moving_time=moving_time, blocking=False)
+        #         self.robot.arm.set_single_joint_position("elbow", elbow - self.DELTA_ANGLE, moving_time=moving_time, blocking=False)
+        # elif command == "down":
+        #     if wrist_angle > self.WRIST_LIMIT:
+        #         self.get_logger().warn(f'Arm is at the wrist limit, cannot move down')
+        #         return
+        #     if shoulder > self.ZERO_SHOULDER:
+        #         self.robot.arm.set_single_joint_position("shoulder", shoulder - self.DELTA_ANGLE, moving_time=moving_time, blocking=False)
+        #         self.robot.arm.set_single_joint_position("elbow", elbow + self.DELTA_ANGLE, moving_time=moving_time, blocking=False)
+        #     else:
+        #         self.robot.arm.set_single_joint_position("wrist_angle", wrist_angle + self.DELTA_ANGLE, moving_time=moving_time, blocking=False)
 
     def handle_state(self): # Not in use
         if self.state == ArmState.IDLE:

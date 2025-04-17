@@ -18,7 +18,7 @@ class SerialNode(Node):
         self.is_display_info = False
         self.cmdvel_sub = self.create_subscription(Twist, '/cmd_vel', self.cmdvel_callback, 10)
         self.yolo2ser = self.create_subscription(Twist, 'yolo2ser', self.cmdvel_callback, 10)
-        self.timer = self.create_timer(4.0, self.timer_callback)
+        self.timer = self.create_timer(5.0, self.timer_callback)
 
     def read_from_serial(self):
         if self.ser.in_waiting > 0:
@@ -36,7 +36,7 @@ class SerialNode(Node):
                     if eof_value == 0x5A:
                         self.variables = variables # Update the variables
                         if self.is_display_info:
-                            self.get_logger().info(f"Received Wheel Odom: {variables}")
+                            # self.get_logger().info(f"Received Wheel Odom: {variables}")
                             self.is_display_info = False
                         # self.get_logger().info('Broadcasted transform from odom to base_link')
                         # time_diff = time.time() - self.last_time

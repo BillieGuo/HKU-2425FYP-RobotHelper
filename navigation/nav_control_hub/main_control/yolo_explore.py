@@ -14,7 +14,7 @@ VISUALIZE = True
 CAMERA_WIDTH = 640
 CAMERA_HEIGHT = 480
 CAMERA_THRESHOLD = 100
-DISTANCE_THRESHOLD = 600 # unit: mm (align with the depth image)
+DISTANCE_THRESHOLD = 500 # unit: mm (align with the depth image)
 
 # RGBD Message
 # std_msgs/Header header
@@ -42,7 +42,7 @@ class Yolo(Node):
         
         self.view_angle_pub = self.create_publisher(
             String,
-            'robotic_arm/view_angle',
+            '/robotic_arm/view_angle',
             10)
         
         rgbd_topic = f"/{camera_namespace}/{camera_name}/rgbd"
@@ -63,7 +63,7 @@ class Yolo(Node):
         self.prompt = None
         self.rgb_camera_info = None
         self.depth_camera_info = None
-        self.distance_windows = [0,0,0,0,0]
+        self.distance_windows = [1000,1000,1000,1000,1000]
         self.windows_index = 0
         
         model_path = "./src/HKU-2425FYP-RobotHelper/navigation/nav_control_hub/models/" 
@@ -104,12 +104,12 @@ class Yolo(Node):
             angular = 0.0
         elif cmd == "Start" or cmd == "CCW":
             linear = 0.0
-            angular = 0.18 # CCW
+            angular = 0.15 # CCW
         elif cmd == "CW":
             linear = 0.0
-            angular = -0.18
+            angular = -0.15
         elif cmd == "Forward":
-            linear = 0.14
+            linear = 0.1
             angular = 0.0
 
         vel.linear.x = linear
@@ -255,7 +255,8 @@ class Yolo(Node):
         center_y = bbox[1]
 
         # Check if the object is in the center of the image
-        if abs(center_x - CAMERA_WIDTH / 2) < CAMERA_THRESHOLD and abs(center_y - CAMERA_HEIGHT/2) < CAMERA_THRESHOLD:
+        # if abs(center_x - CAMERA_WIDTH / 2) < CAMERA_THRESHOLD and abs(center_y - CAMERA_HEIGHT/2) < CAMERA_THRESHOLD:
+        if abs(center_x - CAMERA_WIDTH / 2) < CAMERA_THRESHOLD:
             # Object is in the center, return true, stop moving
             return True
         # Object is not in the center, return false, and rotate accordingly
@@ -263,13 +264,13 @@ class Yolo(Node):
             self.pub_chassis_control("CCW")
         elif center_x > CAMERA_WIDTH / 2:
             self.pub_chassis_control("CW")
-        msg = String()
-        if center_y < CAMERA_HEIGHT / 2:
-            msg.data = "up"
-            self.view_angle_pub.publish(msg=msg)
-        elif center_y > CAMERA_HEIGHT / 2:
-            msg.data = "down"
-            self.view_angle_pub.publish(msg=msg)
+        # msg = String()
+        # if center_y < CAMERA_HEIGHT / 2:
+        #     msg.data = "up"
+        #     self.view_angle_pub.publish(msg=msg)
+        # elif center_y > CAMERA_HEIGHT / 2:
+        #     msg.data = "down"
+        #     self.view_angle_pub.publish(msg=msg)
 
         return False
 

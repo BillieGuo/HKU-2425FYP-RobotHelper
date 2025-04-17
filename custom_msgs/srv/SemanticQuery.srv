@@ -5,3 +5,4 @@ string[] corresponding_semantic_service
 float32[] similarities
 geometry_msgs/Point[] points
 string[] labels
+float32[] confs

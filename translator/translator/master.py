@@ -3,7 +3,7 @@ import numpy
 import subprocess
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import String
+from std_msgs.msg import String, Bool
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 
 from translator.utils import get_config, safe_to_run
@@ -32,18 +32,19 @@ class Master(Node):
 		self.subscriber_master_text = self.create_subscription(String, 'text_prompt', self.master_response_callback, 10)
 		self.subscriber_master_voice = self.create_subscription(String, 'voice_prompt', self.master_response_callback, 10)
 		self.socket2llm = self.create_subscription(String, 'socket2llm', self.socket_query_callback, 10)
-		self.arm2llm = self.create_subscription(String, '/robotic_arm/feedback', self.arm_response_callback, 10)
+		self.arm2llm = self.create_subscription(Bool, '/robotic_arm/feedback', self.arm_response_callback, 10)
   
 		self.get_logger().info("Master node initialized.")
 		pass
         
 	def navigator_response_callback(self, msg):
 		if msg.data:
-			self.get_logger().info(f'navigator response: {msg.data}')
+			self.get_logger().info(f'navigator response: {msg.data}, type: {type(msg.data)}')
 		if "[" in msg.data and "]" in msg.data:
 			self.location_when_receive_cmd = eval(msg.data)
 		else:
 			self.navigation_action_status = True if msg.data == 'True' else False
+		self.get_logger().info(f'self.navigation_action_status: {self.navigation_action_status}')
 		pass
 
 	def master_response_callback(self, msg):
@@ -62,7 +63,7 @@ class Master(Node):
 		self.llm2socket.publish(msg)
         
 	def arm_response_callback(self, msg):
-		if msg.data:
+		if msg.data is not None:
 			self.get_logger().info(f'arm response: {msg.data}')
 			self.arm_action_status = msg.data == True
         
@@ -134,8 +135,10 @@ class Master(Node):
 			if TEXT_DEBUG:			
 				self.get_logger().info(f'Plans: {plans}')
 			
-			self.llm2navigator.publish("request_current_location")
-			while self.navigation_action_status is None:
+			msg = String()
+			msg.data = "request_current_location"
+			self.llm2navigator.publish(msg)
+			while self.location_when_receive_cmd is None:
 				rclpy.spin_once(self, timeout_sec=0.1)
 				continue
 			# list of action handling
@@ -146,39 +149,44 @@ class Master(Node):
 						result = result[0].strip()  # Extract the first element and strip any whitespace
 						result = eval(result)
 						if result[0] == 'user location':
+							self.get_logger().info(f'Return to user location: {self.location_when_receive_cmd}')
 							if self.location_when_receive_cmd is not None:
-								final = self.location_when_receive_cmd
+								final = str(self.location_when_receive_cmd)
 							else:
 								self.get_logger().info(f"User location not found, skipping navigator action.")
 								continue
 						else:
 							final = result[1]
 					if TEXT_DEBUG:
-						self.get_logger().info(f"Navigator result: {result}, eval: {eval(result)}")
+						self.get_logger().info(f"Navigator result: {result}")
 					tx = String()
 					tx.data = final
 					self.llm2navigator.publish(tx)
+					self.navigation_action_status = None
 					while self.navigation_action_status is None:
-						rclpy.spin_once(self, timeout_sec=0.1)
+						rclpy.spin_once(self, timeout_sec=10)
 						continue
 				elif "arm" in action:
-					if self.navigation_action_status is False:
+					if self.navigation_action_status is False or self.navigation_action_status is None:
 						self.get_logger().info(f"Navigation failed, skipping arm action.")
 						continue
 					result = self.arm(action.split("(")[1].strip(")")) # Object: String
 					if isinstance(result, tuple) and len(result) > 0:
 						result = result[0].strip()  # Extract the first element and strip any whitespace
+						result = eval(result)
 					if TEXT_DEBUG:
-						self.get_logger().info(f"Arm result: {result},  eval: {eval(result)[0]}")
+						self.get_logger().info(f"Arm result: {result}")
 					tx = String()
-					tx.data = eval(result)[0]
+					tx.data = result[0]
 					self.llm2arm.publish(tx)
 					# wait for arm process to be completed
+					self.arm_action_status = None
 					while self.arm_action_status is None:
-						rclpy.spin_once(self, timeout_sec=0.1)
+						rclpy.spin_once(self, timeout_sec=10)
 						continue
 				else:
-					self.get_logger().info(f"Unknown action: {action}")
+					if action != "###":
+						self.get_logger().info(f"Unknown action: {action}")
 				# self.get_logger().info(f"tx: {tx.data}")
 
 			# Response / Display

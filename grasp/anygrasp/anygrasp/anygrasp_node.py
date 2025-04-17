@@ -69,7 +69,8 @@ class AnyGraspNode(Node):
         # Check if the RGBD message is empty
         if msg.header.stamp.sec == 0:
             self.get_logger().info("Received empty RGBD message. Publish empty grasp response. Keep listening to /cropped_rgbd\n")
-            self.grasp_pub.publish(GraspResponse())
+            self.grasp_pub.publish(GraspResponse(num_grasp_poses=0, grasp_poses=[Pose()], scores=[0]))
+            # self.grasp_pub.publish(GraspResponse())
             return
         rgb_image = self.bridge.imgmsg_to_cv2(msg.rgb, "rgb8")
         depth_image = self.bridge.imgmsg_to_cv2(msg.depth, "16UC1")
