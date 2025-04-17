@@ -103,6 +103,7 @@ class ImageProcessor(Node):
 
     def publish_cropped_images(self, color_image, depth_image):
         rgbd_msg = RGBD()
+        rgbd_msg.header.stamp = self.get_clock().now().to_msg()
         rgbd_msg.rgb = self.bridge.cv2_to_imgmsg(color_image, "bgr8")
         rgbd_msg.depth = self.bridge.cv2_to_imgmsg(depth_image, "16UC1")
         rgbd_msg.rgb_camera_info = self.rgb_camera_info
