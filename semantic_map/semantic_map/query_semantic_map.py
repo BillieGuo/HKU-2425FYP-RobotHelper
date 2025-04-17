@@ -29,6 +29,7 @@ class SocketSender(Node):
             self.handle_semantic_query
         )
         self.query_point_processor = QueryPointProcessor()
+        self.default_strategy = self.query_point_processor.sim_1_sort_confs
         # testing
         # points = [Point(x=1.0, y=2.0, z=3.0), Point(x=4.0, y=5.0, z=6.0), Point(x=7.0, y=8.0, z=9.0)]
         # similarities = [0.8, 0.9, 0.7] 
@@ -59,6 +60,7 @@ class SocketSender(Node):
         similarities = []
         points = []
         labels = []
+        confs = []
         for i in range(len(list_of_results)):
             if len(list_of_results[i].labels)==0:
                 for j in range(len(list_of_results[i].similarities)):
@@ -66,19 +68,33 @@ class SocketSender(Node):
                     similarities.append(list_of_results[i].similarities[j])
                     points.append(list_of_results[i].points[j])
                     labels.append("")
+                    confs.append(-1)
             else:
                 for j in range(len(list_of_results[i].labels)):
                     corresponding_semantic_service.append(list_of_results[i].service_name)
                     similarities.append(list_of_results[i].similarities[j])
                     points.append(list_of_results[i].points[j])
                     labels.append(list_of_results[i].labels[j])
-        self.query_point_processor.update_values(points, similarities, corresponding_semantic_service, labels)
-        points, similarities, corresponding_semantic_service, labels = self.query_point_processor.sort_similarity()
-        self.get_logger().info("Finish sending socket message")
+                    confs.append(list_of_results[i].confs[j])
+        print(corresponding_semantic_service)
+        print(similarities)
+        print(points)
+        print(labels)
+        print(confs)
+        self.get_logger().info("Finish getting socket message")
+        self.query_point_processor.update_values(points, similarities, corresponding_semantic_service, labels, confs)
+        points, similarities, corresponding_semantic_service, labels, confs = self.default_strategy()
+        print(corresponding_semantic_service)
+        print(similarities)
+        print(points)
+        print(labels)
+        print(confs)
         response.corresponding_semantic_service = corresponding_semantic_service
         response.similarities = similarities
         response.points = points
         response.labels = labels
+        response.confs = confs
+        self.get_logger().info("Returning Response")
         return response
     
     def receive_semantic_map_results(self):
@@ -129,7 +145,7 @@ class SocketSender(Node):
         self.get_logger().info(f"Connected to {self.connect_to} on port {self.port_num}")   
     
     def wait_handshake(self, handshake_msg="handshake"):
-        self.get_logger().info(f"Waiting for handshake")
+        self.get_logger().info(f"Waiting for handshake {handshake_msg}")
         handshake = self.sock.recv(1024).decode()
         if handshake != handshake_msg:
             self.get_logger().error("Handshake failed")

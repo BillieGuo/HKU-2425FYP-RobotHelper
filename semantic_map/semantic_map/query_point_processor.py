@@ -6,14 +6,42 @@ class QueryPointProcessor:
         self.feat_similarities = []
         self.service_names = []
         self.labels = []
+        self.confs = []
         self.default_strategy = self.max_similarity
+        self.sim_1_threshold = 0.95
     
-    def update_values(self, query_points, feat_similarities, service_names, labels):
+    def update_values(self, query_points, feat_similarities, service_names, labels, confs):
         self.query_points = query_points
         self.feat_similarities = feat_similarities
         self.service_names = service_names
         self.labels = labels
+        self.confs = confs
     
+    def filter_confidence(self, confidence_threshold=0.5):
+        '''
+        Filter the query_points, feat_similarities, service_names, labels by confidence_threshold
+        Usage:
+        query_point_processor.filter_confidence(confidence_threshold=0.5)
+        '''
+        query_points = []
+        feat_similarities = []
+        service_names = []
+        labels = []
+        confs = []
+        for i in range(len(self.confs)):
+            if self.confs[i] > confidence_threshold:
+                query_points.append(self.query_points[i])
+                feat_similarities.append(self.feat_similarities[i])
+                service_names.append(self.service_names[i])
+                labels.append(self.labels[i])
+                confs.append(self.confs[i])
+        self.query_points = query_points
+        self.feat_similarities = feat_similarities
+        self.service_names = service_names
+        self.labels = labels
+        self.confs = confs
+        print("Filtered by confidence")
+
     def sort_similarity(self):
         '''
         Sort the query_points, feat_similarities, service_names, labels by feat_similarities
@@ -25,10 +53,50 @@ class QueryPointProcessor:
         self.feat_similarities = [self.feat_similarities[i] for i in sorted_indices]
         self.service_names = [self.service_names[i] for i in sorted_indices]
         self.labels = [self.labels[i] for i in sorted_indices]
+        self.confs = [self.confs[i] for i in sorted_indices]
         print("Sorted by similarity")
         for i in range(len(self.feat_similarities)):
             print(f"Point: {self.query_points[i]}, Feature Similarity: {self.feat_similarities[i]}, Service Name: {self.service_names[i]}, Label: {self.labels[i]}")
-        return self.query_points, self.feat_similarities, self.service_names, self.labels
+        return self.query_points, self.feat_similarities, self.service_names, self.labels, self.confs
+    
+    def sim_1_sort_confs(self):
+        '''
+        for elements with similarity 1 sort the confidences in descending order.
+        Usage:
+        query_point_processor.sim_1_sort_confs()
+        '''
+        query_points = []
+        feat_similarities = []
+        service_names = []
+        labels = []
+        confs = []
+        for i in range(len(self.feat_similarities)):
+            if self.feat_similarities[i] >= self.sim_1_threshold:
+                query_points.append(self.query_points[i])
+                feat_similarities.append(self.feat_similarities[i])
+                service_names.append(self.service_names[i])
+                labels.append(self.labels[i])
+                confs.append(self.confs[i])
+        sorted_indices = sorted(range(len(confs)), key=lambda k: confs[k], reverse=True)
+        query_points = [query_points[i] for i in sorted_indices]
+        feat_similarities = [feat_similarities[i] for i in sorted_indices]
+        service_names = [service_names[i] for i in sorted_indices]
+        labels = [labels[i] for i in sorted_indices]
+        confs = [confs[i] for i in sorted_indices]
+        return query_points, feat_similarities, service_names, labels, confs
+
+    def max_of_sim_1_sort_confs(self):
+        '''
+        Return the max similarity point and the corresponding feature_similarity, service_name, label of the elements with similarity 1.
+        Usage:
+        query_point_processor.max_of_sim_1_sort_confs()
+        '''
+        query_points, feat_similarities, service_names, labels, confs = self.sim_1_sort_confs()
+        print(query_points, feat_similarities, service_names, labels, confs)
+        if query_points == []:
+            return None, None, None, None, None
+        else:
+            return query_points[0], feat_similarities[0], service_names[0], labels[0], confs[0]
 
     def max_similarity(self):
         '''

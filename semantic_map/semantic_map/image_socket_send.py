@@ -44,6 +44,8 @@ class SocketSender(Node):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.camera_to_world = None
+
+        self.latest_image_time = None
     
     def wait_for_first_images(self):
         while self.updating_color_image is None or self.updating_depth_image is None:
@@ -77,6 +79,24 @@ class SocketSender(Node):
         )
         self.camera_to_world = t
         return True
+        
+    def listen_tf_time_align(self):
+        try:
+            # 使用图像时间戳获取变换
+            transform = self.tf_buffer.lookup_transform(
+                self.world_frame,
+                self.camera_frame,
+                rclpy.time.Time()
+                # rclpy.time.Time(seconds=self.latest_image_time.sec, 
+                #               nanoseconds=self.latest_image_time.nanosec),
+                # timeout=rclpy.duration.Duration(seconds=0.1)
+            )
+            self.camera_to_world = transform
+            return True
+        except TransformException as ex:
+            self.get_logger().info(
+                f'Could not transform {self.world_frame} to {self.camera_frame}: {ex}')
+            return False
 
     def send_transform(self):
         if self.camera_to_world is not None:
@@ -105,6 +125,7 @@ class SocketSender(Node):
 
     def depth_callback(self, msg):
         self.updating_depth_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough').astype(np.uint16)
+        self.latest_image_time = msg.header.stamp
     
     def image_fix(self):
         self.color_image = self.updating_color_image
@@ -163,10 +184,10 @@ def main(args=None):
             tf_get = False
             while rclpy.ok() and tf_get == False:
                 rclpy.logging.get_logger("tf_get").info("Waiting for tf")
+                rclpy.spin_once(socket_sender, timeout_sec=5.0)
                 socket_sender.depth_fix()
                 socket_sender.image_fix()
-                rclpy.spin_once(socket_sender, timeout_sec=5.0)
-                tf_get = socket_sender.listen_tf()
+                tf_get = socket_sender.listen_tf_time_align()
                 
             socket_sender.wait_handshake("depth")
             socket_sender.send_depth_image()
