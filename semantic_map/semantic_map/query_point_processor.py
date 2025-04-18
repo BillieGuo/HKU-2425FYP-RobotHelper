@@ -84,6 +84,24 @@ class QueryPointProcessor:
         labels = [labels[i] for i in sorted_indices]
         confs = [confs[i] for i in sorted_indices]
         return query_points, feat_similarities, service_names, labels, confs
+    
+    def sort_conf_plus_original(self):
+        '''
+        Sort the query_points, feat_similarities, service_names, labels by confidences in descending order, then sort the original query_points, feat_similarities, service_names, labels by feat_similarities in descending order.
+        Usage:
+        query_point_processor.sort_conf_plus_original()
+        '''
+        self.sort_similarity()
+        query_points, feat_similarities, service_names, labels, confs = self.sim_1_sort_confs()
+        self.query_points = query_points + self.query_points
+        self.feat_similarities = feat_similarities + self.feat_similarities
+        self.service_names = service_names + self.service_names
+        self.labels = labels + self.labels
+        self.confs = confs + self.confs
+        # print("Sorted by confidences in descending order, then sort the original query_points, feat_similarities, service_names, labels by feat_similarities in descending order.")
+        # for i in range(len(self.feat_similarities)):
+        #     print(f"Point: {self.query_points[i]}, Feature Similarity: {self.feat_similarities[i]}, Service Name: {self.service_names[i]}, Label: {self.labels[i]}")
+        return self.query_points, self.feat_similarities, self.service_names, self.labels, self.confs
 
     def max_of_sim_1_sort_confs(self):
         '''

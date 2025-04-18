@@ -40,9 +40,7 @@ class FrameListener(Node):
             return
         
         self.get_logger().info(
-            f'{to_frame_rel} to {from_frame_rel}: \n'
-            f'x: {t.transform.translation.x}\n'
-            f'y: {t.transform.translation.y}\n'
+            f"{t}"
         )
 
 
@@ -54,8 +52,6 @@ def main():
         while rclpy.ok():
             rclpy.spin_once(node)  # Spin once to process callbacks and check for a KeyboardInterrupt
             node.on_timer()  # Call the on_timer method to perform the transformation and log the result
-            # You can add a delay here if needed to control the loop rate
-            # time.sleep(0.5)  # Adjust the delay as needed
             
     except KeyboardInterrupt:
         pass

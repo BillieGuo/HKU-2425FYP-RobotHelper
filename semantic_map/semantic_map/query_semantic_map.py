@@ -16,12 +16,12 @@ from .query_point_processor import *
 from .utils import read_config
 
 class SocketSender(Node):
-    def __init__(self, connect_to='fyp'):
+    def __init__(self):
         super().__init__('image_subscriber_socket_sender')
 
         config_file = read_config("config_query_semantic_map")
         self.port_num = config_file['socket_connection']['port_num']
-        self.connect_to = connect_to
+        self.connect_to = config_file['socket_connection']['host_ip']
         self.socket_setup()
         self.query_service = self.create_service(
             SemanticQuery,
@@ -29,18 +29,7 @@ class SocketSender(Node):
             self.handle_semantic_query
         )
         self.query_point_processor = QueryPointProcessor()
-        self.default_strategy = self.query_point_processor.sim_1_sort_confs
-        # testing
-        # points = [Point(x=1.0, y=2.0, z=3.0), Point(x=4.0, y=5.0, z=6.0), Point(x=7.0, y=8.0, z=9.0)]
-        # similarities = [0.8, 0.9, 0.7] 
-        # service_names = ["service1", "service2", "service3"]
-        # labels = ["label1", "label2", "label3"]
-        # self.query_point_processor.update_values(points, similarities, service_names, labels)
-        # points, similarities, service_names, labels = self.query_point_processor.sort_similarity()
-        # self.get_logger().info(f"Points: {points}")
-        # self.get_logger().info(f"Similarities: {similarities}")
-        # self.get_logger().info(f"Service Names: {service_names}")
-        # self.get_logger().info(f"Labels: {labels}")
+        self.default_strategy = self.query_point_processor.sort_conf_plus_original
 
     def handle_semantic_query(self, request, response):
         similarity_threshold = request.similarity_threshold_rad
@@ -140,6 +129,7 @@ class SocketSender(Node):
             self.get_logger().error(f"Failed to send double threshold: {e}")
 
     def socket_setup(self):
+        self.get_logger().info(f"Connecting to {self.connect_to} on port {self.port_num}")
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((self.connect_to, self.port_num))
         self.get_logger().info(f"Connected to {self.connect_to} on port {self.port_num}")   
@@ -160,7 +150,7 @@ class SocketSender(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    socket_sender = SocketSender(connect_to='fyp')
+    socket_sender = SocketSender()
     print('connected')
     executor = MultiThreadedExecutor()
     executor.add_node(socket_sender)
