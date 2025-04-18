@@ -31,8 +31,8 @@ class SocketClient:
         try:
             self.client.send(msg.encode())
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, ConnectionRefusedError):
-            # print('Server is down, looping to reconnect')
-            self.connect()
+            print('Server is down.')
+            # self.connect()
             return
         return self.client.recv(1024)
                 
