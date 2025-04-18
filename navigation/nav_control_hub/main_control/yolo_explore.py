@@ -8,9 +8,10 @@ import numpy as np
 import cv2
 # from cv_bridge import CvBridge
 from rclpy.qos import QoSProfile, ReliabilityPolicy
+import os
 
 # Parameters
-VISUALIZE = True
+VISUALIZE = False
 CAMERA_WIDTH = 640
 CAMERA_HEIGHT = 480
 CAMERA_THRESHOLD = 100
@@ -66,7 +67,7 @@ class Yolo(Node):
         self.distance_windows = [1000,1000,1000,1000,1000]
         self.windows_index = 0
         
-        model_path = "./src/HKU-2425FYP-RobotHelper/navigation/nav_control_hub/models/" 
+        model_path = os.path.expanduser("~")+"/fyp_ws/src/HKU-2425FYP-RobotHelper/navigation/nav_control_hub/models/" 
         self.model = YOLO(model_path+"yolov8x-worldv2.pt")
         # self.model = YOLO(model_path+"yoloe-11l-seg.pt")
         # self.model = YOLO(model="yoloe-s.pt")
@@ -264,13 +265,13 @@ class Yolo(Node):
             self.pub_chassis_control("CCW")
         elif center_x > CAMERA_WIDTH / 2:
             self.pub_chassis_control("CW")
-        # msg = String()
-        # if center_y < CAMERA_HEIGHT / 2:
-        #     msg.data = "up"
-        #     self.view_angle_pub.publish(msg=msg)
-        # elif center_y > CAMERA_HEIGHT / 2:
-        #     msg.data = "down"
-        #     self.view_angle_pub.publish(msg=msg)
+        msg = String()
+        if center_y < CAMERA_HEIGHT / 2:
+            msg.data = "up"
+            self.view_angle_pub.publish(msg=msg)
+        elif center_y > CAMERA_HEIGHT / 2:
+            msg.data = "down"
+            self.view_angle_pub.publish(msg=msg)
 
         return False
 

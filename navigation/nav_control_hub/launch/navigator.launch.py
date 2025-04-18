@@ -14,7 +14,15 @@ def generate_launch_description():
     fast_lio_dir = get_package_share_directory('fast_lio')
     slam_dir = get_package_share_directory('slam_toolbox')
     nav2_dir = get_package_share_directory('nav2_bringup')
-    nav_control_hub_dir = os.getcwd()+'/src/HKU-2425FYP-RobotHelper/navigation/nav_control_hub'
+    nav_control_hub_dir = os.path.join(
+        os.path.expanduser("~"),
+        'fyp_ws',
+        'src',
+        'HKU-2425FYP-RobotHelper',
+        'navigation',
+        'nav_control_hub'
+    )
+    
     nav_params_path = LaunchConfiguration(
         'nav_params', 
         default=os.path.join(nav_control_hub_dir, 'configs', 'nav_params.yaml')
