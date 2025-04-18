@@ -1,6 +1,6 @@
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import PoseStamped, Point
+from geometry_msgs.msg import PoseStamped, Point, Point32
 from visualization_msgs.msg import Marker
 from nav_msgs.msg import Odometry
 from std_msgs.msg import String
@@ -10,6 +10,7 @@ from nav2_simple_commander.robot_navigator import BasicNavigator
 import time
 import math
 from custom_msgs.srv import SemanticQuery
+from sensor_msgs.msg import PointCloud, ChannelFloat32
 
 VISUALIZATION = False
 
@@ -33,6 +34,7 @@ class Navigator(Node):
         self.socket2navigator_sub = self.create_subscription(String, 'socket2navigator', self.socket_response_callback, qos_profile)
         # self.timer = self.create_timer(1.0, self.handel_request)
         self.marker_pub = self.create_publisher(Marker, 'visualization_marker', 10)
+        self.pointcloud_pub = self.create_publisher(PointCloud, 'semantic_points_cloud', 10)
 
         self.sem_map_client = self.create_client(SemanticQuery, 'semantic_query')
         
@@ -75,12 +77,46 @@ class Navigator(Node):
         self.get_logger().info(f"Exploration result received: {self.explore}")
             
     def requset_location(self, target):
-        self.get_logger().info(f"Requesting location of {target}")
-        target_locations, _, _, _ = self.query_service(target, 0.2)
-        if not target_locations:
-            return None
-        return [target_locations[0].x, target_locations[0].y, target_locations[0].z]
+        # OLD: Only query the target location
+        # self.get_logger().info(f"Requesting location of {target}")
+        # target_locations, _, _, _ = self.query_service(target, 0.2)
+        # if not target_locations:
+        #     return None
+        # return [target_locations[0].x, target_locations[0].y, target_locations[0].z]
         
+        # New: Query all the sem points, set the similarity to 2*Pi, get 1st point as location
+        self.get_logger().info(f"Requesting all semantic points")
+        sem_points, _, _, _ = self.query_service(target, math.pi)
+        # self.get_logger().info(f"all sem points:{sem_points}")
+        if not sem_points:
+            return None
+        # Get the first point and viusalize all the points
+        self.publish_semantic_points(sem_points)
+        return [sem_points[0].x, sem_points[0].y, sem_points[0].z]
+
+    def publish_semantic_points(self, points: list[Point]):
+        pointcloud = PointCloud()
+        pointcloud.header.frame_id = "map"  # Frame of reference
+        pointcloud.header.stamp = self.get_clock().now().to_msg()
+
+        # Convert points to PointCloud format with 32-bit floats
+        for point in points:
+            geometry_point = Point32()
+            geometry_point.x = float(point.x)
+            geometry_point.y = float(point.y)
+            geometry_point.z = float(point.z)
+            pointcloud.points.append(geometry_point)
+
+        # Optionally, add channels (e.g., intensity or other attributes)
+        channel = ChannelFloat32()
+        channel.name = "intensity"
+        channel.values = [1.0] * len(points)  # Example: uniform intensity
+        pointcloud.channels.append(channel)
+
+        # Publish the PointCloud
+        self.pointcloud_pub.publish(pointcloud)
+        self.get_logger().info(f"Published {len(points)} points as PointCloud.")
+
     def request_exploration(self, target):
         self.get_logger().info(f"Requesting exploration of {target}")
         msg = String()
