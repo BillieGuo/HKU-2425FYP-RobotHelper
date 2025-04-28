@@ -11,11 +11,13 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy
 import os
 
 # Parameters
-VISUALIZE = False
+VISUALIZE = True
 CAMERA_WIDTH = 640
 CAMERA_HEIGHT = 480
 CAMERA_THRESHOLD = 100
 DISTANCE_THRESHOLD = 500 # unit: mm (align with the depth image)
+
+PURE_EXPLORE = True
 
 # RGBD Message
 # std_msgs/Header header
@@ -129,6 +131,8 @@ class Yolo(Node):
     def run(self):
         while rclpy.ok():    
             rclpy.spin_once(self)
+            if PURE_EXPLORE:
+                self.prompt = input("Enter the target object to explore (or 'stop' to stop): ")
             try:
                 if self.prompt is None:
                     continue
@@ -256,8 +260,8 @@ class Yolo(Node):
         center_y = bbox[1]
 
         # Check if the object is in the center of the image
-        # if abs(center_x - CAMERA_WIDTH / 2) < CAMERA_THRESHOLD and abs(center_y - CAMERA_HEIGHT/2) < CAMERA_THRESHOLD:
-        if abs(center_x - CAMERA_WIDTH / 2) < CAMERA_THRESHOLD:
+        if abs(center_x - CAMERA_WIDTH / 2) < CAMERA_THRESHOLD and abs(center_y - CAMERA_HEIGHT/2) < CAMERA_THRESHOLD:
+        # if abs(center_x - CAMERA_WIDTH / 2) < CAMERA_THRESHOLD:
             # Object is in the center, return true, stop moving
             return True
         # Object is not in the center, return false, and rotate accordingly
