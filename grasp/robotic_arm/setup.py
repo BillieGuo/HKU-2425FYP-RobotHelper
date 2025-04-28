@@ -30,6 +30,8 @@ setup(
             'arm_manipulator = robotic_arm.arm_manipulator:main',
             'tag_tf_pub = robotic_arm.tag_to_tf_publisher:main',
             'arm_test = robotic_arm.arm_test:main',
+            'image_tf_test = robotic_arm.image_transform_listener:main',
+            'image_tf_clt =  robotic_arm.image_transform_client:main',
         ],
     },
 )

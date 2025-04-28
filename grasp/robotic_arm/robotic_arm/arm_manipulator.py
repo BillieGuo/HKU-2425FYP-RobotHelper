@@ -242,7 +242,7 @@ class ArmManipulator(Node):
         # Set a timer for timeout handling
         if self.capture_timeout_timer:
             self.capture_timeout_timer.cancel()
-        self.capture_timeout_timer = self.create_timer(10.0, self.handle_capture_timeout)
+        self.capture_timeout_timer = self.create_timer(20.0, self.handle_capture_timeout)
 
     def handle_capture_timeout(self):
         if self.state == ArmState.CAPTURING:
