@@ -24,6 +24,7 @@ setup(
             'query_semantic_map = semantic_map.query_semantic_map:main',
             'query_client = semantic_map.query_client:main',
             "image_transform_listener = semantic_map.image_transform_listener:main",
+            "gdino_query_sender = semantic_map.gdino_query_sender:main",
         ],
     },
 )

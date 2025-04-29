@@ -29,7 +29,7 @@ class SocketSender(Node):
             self.handle_semantic_query
         )
         self.query_point_processor = QueryPointProcessor()
-        self.default_strategy = self.query_point_processor.sort_conf_plus_original
+        self.default_strategy = self.query_point_processor.sort_similarity
 
     def handle_semantic_query(self, request, response):
         similarity_threshold = request.similarity_threshold_rad
