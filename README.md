@@ -6,6 +6,7 @@ This repository contains four main modules for a language-instructed robot helpe
 # Start Sequence
 The project requires a specific launch sequence. For the alias command and functions, refer to [bashrc_scripts.sh](./bashrc_scripts.sh)
 ## Robotic Arm Server
+1. Robotic Arm Server
     ```bash
     server_image
     server_grasp
@@ -42,9 +43,10 @@ The project requires a specific launch sequence. For the alias command and funct
     ```
 8. Semantic Map socket on robot
    ```bash
-    ros2 rum semantic_map image_transform_listener
+    ros2 run semantic_map image_transform_listener
     ```
 ## Semantic Map Server
+1. Semantic Map Server
     ```bash
     cd llmbot2_ws
     ./start_semantic_map.sh
@@ -53,8 +55,9 @@ The project requires a specific launch sequence. For the alias command and funct
     ros2 run sem_map gdino_query_client
     ```
 ## The on-board computer
+9. Semantic Map Query
     ```bash
-    ros2 rum semantic_map query_semantic_map
+    ros2 run semantic_map query_semantic_map
     ```
 
 All programs needed is now started, to query the robot please conduct the following:
