@@ -3,6 +3,9 @@ This is the code repository of a final year project, whose authors are Guo Bao, 
 
 This repository contains four main modules for a language-instructed robot helper: grasp, semantic map, navigation and tranlator. Each module contains one or more ROS2 packages to facilitate the functions.
 
+#### **video demo**(Click to view)
+[![Watch the video](https://img.youtube.com/vi/Kjc9AbElhQk/0.jpg)](https://www.youtube.com/watch?v=Kjc9AbElhQk)
+
 # Start Sequence
 The project requires a specific launch sequence. For the alias command and functions, refer to [bashrc_scripts.sh](./bashrc_scripts.sh)
 ## Robotic Arm Server
