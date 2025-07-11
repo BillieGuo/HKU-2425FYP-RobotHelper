@@ -6,6 +6,8 @@ This repository contains four main modules for a language-instructed robot helpe
 #### **video demo**(Click to view)
 [![Watch the video](https://img.youtube.com/vi/Kjc9AbElhQk/0.jpg)](https://www.youtube.com/watch?v=Kjc9AbElhQk)
 
+an object name is input to the robot, the robot will, according to the prebuilt map, navigate to the object location and pick it up
+
 # Start Sequence
 The project requires a specific launch sequence. For the alias command and functions, refer to [bashrc_scripts.sh](./bashrc_scripts.sh)
 ## Robotic Arm Server
